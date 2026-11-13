@@ -1,0 +1,5 @@
+.env
+r34.db
+raw/
+curve.json
+__pycache__/
