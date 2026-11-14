@@ -1,5 +1,5 @@
 from __future__ import annotations
-import argparse, bisect, json, sqlite3
+import argparse, bisect, json, math, sqlite3
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,18 +30,25 @@ class Curve:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--types", default="general,copyright,character,artist,metadata")
+    ap.add_argument("--ratings", default="explicit,questionable,safe")
     ap.add_argument("--min-total", type=int, default=80)
-    ap.add_argument("--top", type=int, default=300)
     ap.add_argument("--min-years", type=int, default=5)
     ap.add_argument("--max-global", type=int, default=3_000_000)
+    ap.add_argument("--max-jump", type=float, default=8.0)
+    ap.add_argument("--sort", choices=["total", "trend"], default="total")
+    ap.add_argument("--top", type=int, default=300)
     a = ap.parse_args()
     keep = set(a.types.split(","))
+    ratings = set(a.ratings.split(","))
 
     curve = Curve(json.loads(Path("curve.json").read_text()))
     con = sqlite3.connect("r34.db")
 
     per_year, counts, meta = Counter(), defaultdict(Counter), {}
-    for pid, tags, ti in con.execute("SELECT id, tags, tag_info FROM posts"):
+    for pid, tags, ti, rating in con.execute(
+            "SELECT id, tags, tag_info, rating FROM posts"):
+        if rating not in ratings:
+            continue
         y = curve.year(pid)
         per_year[y] += 1
         info = json.loads(ti or "{}")
@@ -52,24 +59,36 @@ def main():
                 counts[y][t] += 1
 
     years = sorted(y for y in per_year if per_year[y] >= 100)
+
+    def edge(sh, i, k=3):
+        sel = [sh[y] for y in years[i:i + k]]
+        return sum(sel) / len(sel) if sel else 0.0
+
     rows = []
     for t, (typ, g) in meta.items():
         if typ not in keep or g > a.max_global:
             continue
+        sh = {y: counts[y][t] / per_year[y] for y in years}
         total = sum(counts[y][t] for y in years)
         present = len([y for y in years if counts[y][t]])
         if total < a.min_total or present < a.min_years:
             continue
-        shares = {str(y): counts[y][t] / per_year[y] for y in years}
-        trend = (shares[str(years[-1])] + 1e-6) / (shares[str(years[0])] + 1e-6)
-        rows.append({"tag": t, "type": typ, "total": total,
-                     "trend": round(trend, 3),
-                     "shares": {k: round(v, 6) for k, v in shares.items()}})
+        jumps = [sh[y2] / sh[y1] for y1, y2 in zip(years, years[1:]) if sh[y1] > 0]
+        jump = max(jumps) if jumps else 1.0
+        trend = (edge(sh, -3) + 1e-6) / (edge(sh, 0) + 1e-6)
+        p = edge(sh, -3)
+        n_last = sum(per_year[y] for y in years[-3:]) / max(1, len(years[-3:]))
+        margin = 1.96 * math.sqrt(max(p * (1 - p), 0) / max(n_last, 1))
+        rows.append({"tag": t, "type": typ, "total": total, "jump": round(jump, 1),
+                     "trend": round(trend, 3), "margin": round(margin, 5),
+                     "shares": {str(y): round(v, 6) for y, v in sh.items()}})
 
-    rows.sort(key=lambda r: -r["total"])
+    if a.max_jump:
+        rows = [r for r in rows if r["jump"] <= a.max_jump]
+    rows.sort(key=(lambda r: -r["trend"]) if a.sort == "trend" else (lambda r: -r["total"]))
     Path("web/data.json").write_text(json.dumps(
-        {"years": [str(y) for y in years], "sampled": dict(per_year),
-         "tags": rows[:a.top]}, ensure_ascii=False))
+        {"years": [str(y) for y in years], "n": dict(per_year),
+         "ratings": sorted(ratings), "tags": rows[:a.top]}, ensure_ascii=False))
     print(f"{len(rows)} тегов, {len(years)} лет → web/data.json")
 
 

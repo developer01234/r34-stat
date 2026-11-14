@@ -6,10 +6,27 @@ import httpx
 API = "https://api.rule34.xxx/index.php"
 DB = Path(os.environ.get("R34_DB", "r34.db"))
 RAW = Path(os.environ.get("R34_RAW", "raw"))
+UA = "r34-tagtrends/0.1 (personal research)"
+
+
+def load_env(path=".env"):
+    p = Path(path)
+    if not p.exists():
+        return
+    for line in p.read_text(encoding="utf-8-sig").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        os.environ.setdefault(k.strip(), v.strip())
+
+
+load_env()
+
 USER_ID = os.environ["R34_USER_ID"]
 API_KEY = os.environ["R34_API_KEY"]
 RPS = float(os.environ.get("R34_RPS", "1.0"))
-UA = "r34-tagtrends/0.1 (personal research)"
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS posts(
   id INTEGER PRIMARY KEY, change_ts INTEGER, score INTEGER,
@@ -67,14 +84,15 @@ async def fetch(client, tags, limit=1000, retries=6):
                 raise httpx.HTTPStatusError("busy", request=r.request, response=r)
             r.raise_for_status()
             body = r.text.strip()
+            if not body:
+                raise RuntimeError("empty body")
             if "API limited" in body:
                 raise RuntimeError("API limited due to abuse")
-            return normalize(r.json())
+            return normalize(json.loads(body))
         except (httpx.HTTPError, json.JSONDecodeError, RuntimeError) as e:
             if attempt == retries - 1:
                 raise
             await asyncio.sleep(min(60, 2 ** (attempt + 1)))
-
 
 def save(con, posts, lo, hi):
     con.executemany(
@@ -105,30 +123,47 @@ async def crawl(client, con, top):
         print(f"cursor {lo} ({len(posts)})", flush=True)
         hi = lo
 
-
 async def sample(client, con, n, width, seed=34):
     top = await max_id(client)
     rng = random.Random(seed)
     windows = [(lo, lo + width) for lo in sorted(rng.sample(range(1, top - width), n))]
     done = {r[0] for r in con.execute("SELECT lo FROM windows WHERE done=1")}
-    print(f"max id {top}; РѕРєРѕРЅ: {len(windows)} (РїСЂРѕРїСѓСЃРє {len(done)})", flush=True)
+    print(f"max id {top}; окон: {len(windows)} (пропуск {len(done)})", flush=True)
     RAW.mkdir(exist_ok=True)
-    for i, (lo, hi) in enumerate(windows, 1):
-        if lo in done:
-            continue
+
+    async def grab(lo, hi):
         posts = await fetch(client, f"id:>{lo} id:<{hi}")
         if posts:
             save(con, posts, lo, hi)
             with gzip.open(RAW / f"{lo}.json.gz", "wt") as f:
                 json.dump(posts, f)
-        print(f"[{i}/{len(windows)}] {lo} -> {len(posts)}", flush=True)
+        return len(posts)
 
+    fails = []
+    for i, (lo, hi) in enumerate(windows, 1):
+        if lo in done:
+            continue
+        try:
+            print(f"[{i}/{len(windows)}] {lo} -> {await grab(lo, hi)}", flush=True)
+        except Exception as e:
+            print(f"[{i}/{len(windows)}] {lo} FAIL {type(e).__name__}: {e}", flush=True)
+            fails.append((lo, hi))
+
+    if fails:
+        print(f"паузa 120 с, затем {len(fails)} повторов", flush=True)
+        await asyncio.sleep(120)
+        for lo, hi in fails:
+            try:
+                print(f"retry {lo} -> {await grab(lo, hi)}", flush=True)
+            except Exception as e:
+                print(f"retry {lo} снова FAIL {type(e).__name__}: {e}", flush=True)
 
 async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", choices=["sample", "full"], default="sample")
     ap.add_argument("--samples", type=int, default=1500)
     ap.add_argument("--width", type=int, default=100)
+    ap.add_argument("--seed", type=int, default=34)
     ap.add_argument("--reset", action="store_true")
     a = ap.parse_args()
 
@@ -142,7 +177,7 @@ async def main():
         if a.mode == "full":
             await crawl(client, con, await max_id(client))
         else:
-            await sample(client, con, a.samples, a.width)
+            await sample(client, con, a.samples, a.width, a.seed)
 
 
 if __name__ == "__main__":
