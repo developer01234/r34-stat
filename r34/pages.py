@@ -41,6 +41,19 @@ def spark(vals, years, color):
             f'cy="{h - pad - (vals[peak_i] / mx) * (h - 2 * pad):.1f}" r="3" fill="#fff"/>'
             f'{marks}</svg>')
 
+def badge(t, years):
+    vals = [t["shares"].get(y, 0) for y in years]
+    mx = max(vals) or 1
+    n = len(vals) - 1 or 1
+    pts = " ".join(f"{112 + i * (74 / n):.1f},{23 - (v / mx) * 18:.1f}"
+                   for i, v in enumerate(vals))
+    label = html.escape(t["tag"])[:16]
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="28">'
+            f'<rect width="200" height="28" rx="4" fill="#1b1b1b"/>'
+            f'<text x="6" y="18" font-family="system-ui" font-size="11" '
+            f'fill="#ddd">{label}</text>'
+            f'<polyline points="{pts}" fill="none" stroke="#6aa8e8" stroke-width="1.5"/>'
+            f'</svg>')
 
 def page(t, d, years, rel, base):
     vals = [t["shares"].get(y, 0) * 100 for y in years]
@@ -77,11 +90,66 @@ def page(t, d, years, rel, base):
 <span class="k">±:</span> {(t['margin'] * 100):.1f} п.п.</p>
 <table><tr><th>год</th><th>доля</th><th>n</th></tr>{rows}</table>
 <p><span class="k">похожие:</span> {links}</p>
+<p><span class="k">бейдж:</span>
+<code>&lt;img src="{base}/badge/{slug(t['tag'])}.svg"&gt;</code></p>
 <footer>Доля постов с тегом от всех постов года. Год восстановлен по ID поста,
 это оценка, а не дата загрузки. n — размер выборки по году.
 Данные: rule34.xxx. <a href="../">все теги</a>.</footer>
 </html>"""
 
+def method(d, years):
+    total = sum(d["n"].values())
+    rows = "".join(f"<tr><td>{y}</td><td>{d['n'].get(y, 0)}</td></tr>" for y in years)
+    return f"""<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>методика | r34 tag trends</title>
+<style>
+ body{{background:#111;color:#ddd;font:14px system-ui;padding:24px;max-width:760px;line-height:1.65}}
+ a{{color:#6aa8e8}} h2{{font-size:16px;margin-top:26px}} code{{color:#e0b23a}}
+ table{{border-collapse:collapse}} td,th{{padding:2px 12px;border-bottom:1px solid #222;text-align:left}}
+</style></head>
+<p><a href="./">← дашборд</a></p>
+<h1>Методика</h1>
+<p>Проект считает, какую долю постов в каждом году составляли посты с данным тегом.
+Выборка: <b>{total}</b> постов за {years[0]}–{years[-1]}.</p>
+
+<h2>Откуда берётся год</h2>
+<p>API rule34.xxx не отдаёт дату загрузки. Единственная метка времени в ответе —
+<code>change</code>, время последней правки поста, и оно всегда не меньше времени загрузки.
+Посты сортируются по ID, а ID растут монотонно, поэтому год восстанавливается по ID:
+окна ID сопоставляются с минимальным <code>change</code> в окне, ряд сглаживается
+монотонно (pool-adjacent-violators), затем пост относится к году по интерполяции.</p>
+<p>Это <b>оценка</b>. Ретэггинг старых постов сдвигает её вперёд, и на границах годов
+возможна ошибка в несколько месяцев.</p>
+
+<h2>Выборка</h2>
+<p>Окна ID отбираются случайно по всему диапазону, а не по порядку, чтобы не смещаться
+к свежим загрузкам. Размер выборки по годам:</p>
+<table><tr><th>год</th><th>постов</th></tr>{rows}</table>
+<p>Ранние годы представлены слабо: до 2014 загрузок было меньше, и случайный семпл
+попадает туда редко. Левый край графиков шумный, доли там — прикидка.</p>
+
+<h2>Погрешность</h2>
+<p>Колонка «±» — 95% доверительный интервал, посчитанный как
+<code>1.96·√(p(1−p)/n)</code> на последних трёх годах. При доле 10% и n=3000 это ±1.1 п.п.
+Разница меньше интервала — не сигнал.</p>
+
+<h2>Артефакты</h2>
+<p>Колонка «скачок» — максимальный рост доли за один год. Значения выше 8 отбрасываются:
+такой профиль означает введение тега или волну ретэггинга, а не смену вкусов.
+Пример — <code>genitals</code>: 0.4% в 2020 и 22% в 2021, рост в 54 раза.</p>
+<p>Плавная смена конвенции разметки фильтром не ловится. Падение <code>human</code>
+в основном означает, что вид перестали указывать, а не что людей на картинках стало меньше.</p>
+
+<h2>Что не измеряется</h2>
+<p>Доля — не качество и не просмотры. <code>score</code> для этого не годится: голосуют редко,
+значения 0 и 1. Удалённые посты в выборку не попадают, то есть история слегка
+отцензурена модерацией.</p>
+
+<h2>Данные и лицензия</h2>
+<p>Сырые агрегаты: <a href="data.json">data.json</a>. Код: MIT.
+Данные принадлежат rule34.xxx и авторам загрузок. Проект неофициальный.</p>
+</html>"""
 
 def main():
     ap = argparse.ArgumentParser()
@@ -120,7 +188,14 @@ def main():
 a{{color:#6aa8e8}} .k{{color:#777;font-size:11px}} li{{margin:3px 0}}</style>
 <p><a href="../">← дашборд</a></p><h1>Теги</h1><ul>{idx}</ul>""", encoding="utf-8")
 
-    urls = [f"{a.base}/"]
+    (Path("web") / "method.html").write_text(method(d, years), encoding="utf-8")
+    
+    bad = Path("web/badge")
+    bad.mkdir(parents=True, exist_ok=True)
+    for t in tags:
+        (bad / f"{slug(t['tag'])}.svg").write_text(badge(t, years), encoding="utf-8")
+
+    urls = [f"{a.base}/", f"{a.base}/method.html", f"{a.base}/compare.html"]
     for f in sorted(Path("web").glob("*/")):
         urls += [f"{a.base}/{f.name}/{p.name}" for p in sorted(f.glob("*.html"))]
     today = date.today().isoformat()

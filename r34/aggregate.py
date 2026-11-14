@@ -37,6 +37,7 @@ def main():
     ap.add_argument("--max-jump", type=float, default=8.0)
     ap.add_argument("--sort", choices=["total", "trend"], default="total")
     ap.add_argument("--top", type=int, default=300)
+    ap.add_argument("--out", default="web/data.json")
     a = ap.parse_args()
     keep = set(a.types.split(","))
     ratings = set(a.ratings.split(","))
@@ -86,7 +87,7 @@ def main():
     if a.max_jump:
         rows = [r for r in rows if r["jump"] <= a.max_jump]
     rows.sort(key=(lambda r: -r["trend"]) if a.sort == "trend" else (lambda r: -r["total"]))
-    Path("web/data.json").write_text(json.dumps(
+    Path(a.out).write_text(json.dumps(
         {"years": [str(y) for y in years], "n": dict(per_year),
          "ratings": sorted(ratings), "tags": rows[:a.top]}, ensure_ascii=False))
     print(f"{len(rows)} тегов, {len(years)} лет → web/data.json")

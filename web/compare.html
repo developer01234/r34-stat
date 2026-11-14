@@ -1,0 +1,39 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<title>сравнение тегов | r34 tag trends</title>
+<style>
+ body{background:#111;color:#ddd;font:13px system-ui;padding:24px;max-width:900px}
+ a{color:#6aa8e8} select{background:#1b1b1b;color:#ddd;border:1px solid #444;padding:3px}
+ svg{width:100%;height:220px;margin-top:18px}
+ .a{stroke:#e87bb0}.b{stroke:#5fbf6a}
+</style></head>
+<p><a href="./">← дашборд</a></p>
+<h2>Сравнение</h2>
+<p><select id="sa"></select> <select id="sb"></select></p>
+<p id="stat"></p>
+<svg id="cv" viewBox="0 0 700 220" preserveAspectRatio="none"></svg>
+<script>
+let D=null;
+fetch('data.json').then(r=>r.json()).then(d=>{
+  D=d;
+  const opts=d.tags.map(t=>`<option>${t.tag}</option>`).join('');
+  sa.innerHTML=opts; sb.innerHTML=opts; sb.selectedIndex=1;
+  [sa,sb].forEach(s=>s.onchange=draw);
+  draw();
+});
+function draw(){
+  const ta=D.tags.find(t=>t.tag===sa.value), tb=D.tags.find(t=>t.tag===sb.value);
+  if(!ta||!tb) return;
+  const ys=D.years, peak=Math.max(1e-9,...Object.values(ta.shares),...Object.values(tb.shares));
+  const line=(t,cls)=>{
+    const pts=ys.map((y,i)=>{
+      const v=t.shares[y]||0, x=10+i*(680/(ys.length-1));
+      return `${x.toFixed(1)},${(200-(v/peak)*180).toFixed(1)}`;
+    }).join(' ');
+    return `<polyline points="${pts}" fill="none" stroke-width="2" class="${cls}"/>`;
+  };
+  cv.innerHTML=line(ta,'a')+line(tb,'b');
+  stat.innerHTML=`<span style="color:#e87bb0">${ta.tag}</span> ${ta.trend}× &nbsp;·&nbsp; `
+    +`<span style="color:#5fbf6a">${tb.tag}</span> ${tb.trend}× &nbsp;·&nbsp; `
+    +`масштаб общий, пик ${(peak*100).toFixed(1)}%`;
+}
+</script>
