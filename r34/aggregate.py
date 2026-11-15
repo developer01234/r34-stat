@@ -35,7 +35,7 @@ def main():
     ap.add_argument("--min-years", type=int, default=5)
     ap.add_argument("--max-global", type=int, default=3_000_000)
     ap.add_argument("--max-jump", type=float, default=8.0)
-    ap.add_argument("--sort", choices=["total", "trend"], default="total")
+    ap.add_argument("--sort", choices=["total", "trend", "ai"], default="total")
     ap.add_argument("--top", type=int, default=300)
     ap.add_argument("--out", default="web/data.json")
     a = ap.parse_args()
@@ -46,24 +46,31 @@ def main():
     con = sqlite3.connect("r34.db")
 
     per_year, counts, meta = Counter(), defaultdict(Counter), {}
+    ai_by_year = Counter()
+    ai_counts = defaultdict(Counter)
     for pid, tags, ti, rating in con.execute(
             "SELECT id, tags, tag_info, rating FROM posts"):
         if rating not in ratings:
             continue
-        y = curve.year(pid)
+    y = curve.year(pid)
         per_year[y] += 1
+        is_ai = "ai_generated" in tags
+        if is_ai:
+            ai_by_year[y] += 1
         info = json.loads(ti or "{}")
         for t in tags.split():
             typ, g = info.get(t, ["general", 0])
             meta[t] = (typ, g)
             if typ in keep and g <= a.max_global:
                 counts[y][t] += 1
+                if is_ai:
+                    ai_counts[y][t] += 1
 
     years = sorted(y for y in per_year if per_year[y] >= 100)
+    first3, last3 = years[:3], years[-3:]
 
-    def edge(sh, i, k=3):
-        sel = [sh[y] for y in years[i:i + k]]
-        return sum(sel) / len(sel) if sel else 0.0
+    def mean(vals):
+        return sum(vals) / len(vals) if vals else 0.0
 
     rows = []
     for t, (typ, g) in meta.items():
@@ -76,21 +83,28 @@ def main():
             continue
         jumps = [sh[y2] / sh[y1] for y1, y2 in zip(years, years[1:]) if sh[y1] > 0]
         jump = max(jumps) if jumps else 1.0
-        trend = (edge(sh, -3) + 1e-6) / (edge(sh, 0) + 1e-6)
-        p = edge(sh, -3)
-        n_last = sum(per_year[y] for y in years[-3:]) / max(1, len(years[-3:]))
-        margin = 1.96 * math.sqrt(max(p * (1 - p), 0) / max(n_last, 1))
+        p_first = mean([sh[y] for y in first3])
+        p_last = mean([sh[y] for y in last3])
+        n_last = mean([per_year[y] for y in last3]) or 1
+        trend = (p_last + 1e-6) / (p_first + 1e-6)
+        margin = 1.96 * math.sqrt(max(p_last * (1 - p_last), 0) / n_last)
+        ai_share = sum(ai_counts[y][t] for y in years) / total if total else 0.0
         rows.append({"tag": t, "type": typ, "total": total, "jump": round(jump, 1),
                      "trend": round(trend, 3), "margin": round(margin, 5),
+                     "ai": round(ai_share, 4),
                      "shares": {str(y): round(v, 6) for y, v in sh.items()}})
 
     if a.max_jump:
         rows = [r for r in rows if r["jump"] <= a.max_jump]
-    rows.sort(key=(lambda r: -r["trend"]) if a.sort == "trend" else (lambda r: -r["total"]))
+    keys = {"trend": lambda r: -r["trend"], "ai": lambda r: -r["ai"],
+            "total": lambda r: -r["total"]}
+    rows.sort(key=keys[a.sort])
+
     Path(a.out).write_text(json.dumps(
         {"years": [str(y) for y in years], "n": dict(per_year),
+         "ai": {str(y): round(ai_by_year[y] / per_year[y], 4) for y in years},
          "ratings": sorted(ratings), "tags": rows[:a.top]}, ensure_ascii=False))
-    print(f"{len(rows)} тегов, {len(years)} лет → web/data.json")
+    print(f"{len(rows)} тегов, {len(years)} лет → {a.out}")
 
 
 main()

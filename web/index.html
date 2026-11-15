@@ -1,5 +1,6 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<!doctype html><html lang="en"><head><meta charset="utf-8">
 <title>r34 tag trends</title>
+<script src="i18n.js"></script>
 <style>
  :root{--bg:#111;--fg:#ddd}
  body{background:var(--bg);color:var(--fg);font:13px system-ui;margin:0;padding:24px;max-width:1200px}
@@ -13,21 +14,23 @@
  .character{color:#5fbf6a}.artist{color:#a8763e}.general{color:#6aa8e8}
  .legend{margin:0 0 12px}.legend span{margin-right:16px}
  .nrow td{color:#666;font-size:11px;border-top:1px solid #333}
- input,select{background:#1b1b1b;color:var(--fg);border:1px solid #444;padding:3px 5px}
+ input,select,button{background:#1b1b1b;color:var(--fg);border:1px solid #444;padding:3px 5px}
  footer{color:#777;margin-top:28px;line-height:1.6;max-width:780px}
-</style></head>
-<p><a href="tag/">все теги</a> · <a href="franchise/">франшизы</a> · <a href="compare.html">сравнения</a></p>
-<h2>Популярность тегов по годам (доля постов)</h2>
+</style></head><body>
+<h2 data-i18n="title">Tag popularity by year (share of posts)</h2>
+<p><a href="tag/" data-i18n="tags">all tags</a> · <a href="franchise/" data-i18n="franchises">franchises</a>
+ · <a href="compare.html" data-i18n="compare">compare</a> · <a href="method.html" data-i18n="method">method</a>
+ <button onclick="setLang(localStorage.lang==='en'?'ru':'en')">EN / RU</button></p>
 <div class="legend">
  <span class="metadata">■ metadata</span><span class="copyright">■ copyright</span>
  <span class="character">■ character</span><span class="artist">■ artist</span>
  <span class="general">■ general</span>
 </div>
-<p><input id="q" placeholder="поиск тега" size="24">
- сортировка: <select id="sort">
-  <option value="total">по объёму</option>
-  <option value="trend">по росту</option>
-  <option value="fall">по падению</option>
+<p><input id="q" data-i18n-ph="search" placeholder="search tag" size="24">
+ <span data-i18n="sort">sort</span>: <select id="sort">
+  <option value="total" data-i18n="by_total">by volume</option>
+  <option value="trend" data-i18n="by_rise">by rise</option>
+  <option value="fall" data-i18n="by_fall">by fall</option>
  </select> <span id="cnt"></span></p>
 <table id="tbl"></table>
 <footer id="foot"></footer>
@@ -40,7 +43,9 @@ fetch('data.json').then(r=>r.json()).then(d=>{
   document.getElementById('q').oninput=render;
   document.getElementById('sort').onchange=render;
 });
+window.rerender=render;
 function render(){
+  if(!DATA) return;
   const q=document.getElementById('q').value.trim().toLowerCase();
   const mode=document.getElementById('sort').value;
   let rows=DATA.tags.filter(t=>!q||t.tag.includes(q));
@@ -48,30 +53,28 @@ function render(){
   else if(mode==='fall') rows.sort((a,b)=>a.trend-b.trend);
   else rows.sort((a,b)=>b.total-a.total);
 
-  document.getElementById('cnt').textContent=`${rows.length} из ${DATA.tags.length}`;
+  document.getElementById('cnt').textContent=`${rows.length} ${t('of')} ${DATA.tags.length}`;
   const peak=Math.max(1e-9,...rows.flatMap(t=>Object.values(t.shares)));
-  const h=[`<tr><th class="t">тег</th>${DATA.years.map(y=>`<th>${y}</th>`).join('')}`
-    +'<th>тренд</th><th>±</th><th>скачок</th></tr>'];
-  h.push(`<tr class="nrow"><td class="t">n постов</td>`
+  const h=[`<tr><th class="t">${t('n_posts').replace('n ','')}</th>`
+    +DATA.years.map(y=>`<th>${y}</th>`).join('')
+    +`<th>${t('trend')}</th><th>${t('pm')}</th><th>${t('jump')}</th></tr>`];
+  h.push(`<tr class="nrow"><td class="t">${t('n_posts')}</td>`
     +DATA.years.map(y=>`<td>${DATA.n[y]||0}</td>`).join('')+'<td></td><td></td><td></td></tr>');
-  for(const t of rows){
-    const rgb=(TINT[t.type]||TINT.general).join(',');
-    const cls=t.trend>1.15?'pos':t.trend<0.85?'neg':'';
-    h.push(`<tr><th class="t ${t.type}">${t.tag}</th>`
+  h.push(`<tr class="nrow"><td class="t">${t('ai')}</td>`
+    +DATA.years.map(y=>`<td>${((DATA.ai[y]||0)*100).toFixed(0)}</td>`).join('')+'<td></td><td></td><td></td></tr>');
+  for(const tg of rows){
+    const rgb=(TINT[tg.type]||TINT.general).join(',');
+    const cls=tg.trend>1.15?'pos':tg.trend<0.85?'neg':'';
+    h.push(`<tr><th class="t ${tg.type}">${tg.tag}</th>`
       +DATA.years.map(y=>{
-        const v=t.shares[y]||0;
+        const v=tg.shares[y]||0;
         const a=Math.pow(Math.min(1,v/peak),0.45).toFixed(3);
         return `<td style="background:rgba(${rgb},${a})" title="${y}: ${(v*100).toFixed(2)}%">${v?(v*100).toFixed(2):''}</td>`;
       }).join('')
-      +`<td class="${cls}">${t.trend}×</td><td class="mrg">${(t.margin*100).toFixed(1)}</td><td class="jump">${t.jump}×</td></tr>`);
+      +`<td class="${cls}">${tg.trend}×</td><td class="mrg">${(tg.margin*100).toFixed(1)}</td><td class="jump">${tg.jump}×</td></tr>`);
   }
   document.getElementById('tbl').innerHTML=h.join('');
   document.getElementById('foot').innerHTML=
-    `<p>Доля постов с тегом от всех постов года, %. Год восстановлен по ID поста, `
-    +`не по дате загрузки: API не отдаёт дату, поэтому это оценка. `
-    +`Строка «n постов» — размер выборки по году, ранние годы представлены слабо. `
-    +`Колонка «±» — 95% доверительный интервал на последних трёх годах, п.п. `
-    +`Колонка «скачок» — максимальный рост доли за один год; значения выше 8 отброшены как артефакты ретэггинга. `
-    +`Данные: rule34.xxx, рейтинги: ${DATA.ratings.join(', ')}.</p>`;
+    `<p>${t('foot').replace('{r}', DATA.ratings.join(', '))}</p>`;
 }
-</script>
+</script></body></html>

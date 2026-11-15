@@ -65,13 +65,14 @@ def page(t, d, years, rel, base):
                    f"<td>{d['n'].get(y, 0)}</td></tr>"
                    for y, v in zip(years, vals))
     links = " ".join(f'<a href="{slug(r)}.html">{html.escape(r)}</a>' for r in rel)
-    desc = (f"{t['tag']} на rule34.xxx: доля постов по годам, пик {peak:.2f}% "
-            f"в {peak_y}, сейчас {cur:.2f}%.")
-    return f"""<!doctype html><html lang="ru"><head><meta charset="utf-8">
+    desc = (f"{t['tag']} on rule34.xxx: share of posts by year, peak {peak:.2f}% "
+            f"in {peak_y}, now {cur:.2f}%.")
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{html.escape(t['tag'])} — популярность по годам | r34 tag trends</title>
+<title>{html.escape(t['tag'])} — popularity by year | r34 tag trends</title>
 <meta name="description" content="{html.escape(desc)}">
 <link rel="canonical" href="{base}/tag/{slug(t['tag'])}.html">
+<script src="../i18n.js"></script>
 <style>
  body{{background:#111;color:#ddd;font:14px system-ui;margin:0;padding:24px;max-width:760px}}
  a{{color:#6aa8e8}} h1{{font-size:22px;margin:0 0 4px}}
@@ -79,23 +80,24 @@ def page(t, d, years, rel, base):
  table{{border-collapse:collapse;margin:18px 0}}
  td,th{{padding:2px 10px;text-align:left;font-weight:400;border-bottom:1px solid #222}}
  .k{{color:#888}} footer{{color:#777;font-size:12px;margin-top:28px;line-height:1.6}}
-</style></head>
-<p><a href="../">← все теги</a></p>
+ button{{background:#1b1b1b;color:#ddd;border:1px solid #444;padding:2px 6px}}
+</style></head><body>
+<p><a href="../" data-i18n="dash">← dashboard</a>
+ <a href="./" data-i18n="back">← all tags</a>
+ <button onclick="setLang(localStorage.lang==='en'?'ru':'en')">EN / RU</button></p>
 <h1>{html.escape(t['tag'])}</h1>
-<p class="type">тип: {t['type']}</p>
+<p class="type"><span data-i18n="type">type</span>: {t['type']}</p>
 {spark(vals, years, color)}
-<p><span class="k">пик:</span> {peak:.2f}% в {peak_y} &nbsp;
-<span class="k">сейчас:</span> {cur:.2f}% &nbsp;
-<span class="k">тренд:</span> {t['trend']}× &nbsp;
-<span class="k">±:</span> {(t['margin'] * 100):.1f} п.п.</p>
-<table><tr><th>год</th><th>доля</th><th>n</th></tr>{rows}</table>
-<p><span class="k">похожие:</span> {links}</p>
-<p><span class="k">бейдж:</span>
+<p><span class="k" data-i18n="peak">peak</span>: {peak:.2f}% {peak_y} &nbsp;
+<span class="k" data-i18n="now">now</span>: {cur:.2f}% &nbsp;
+<span class="k" data-i18n="trend">trend</span>: {t['trend']}× &nbsp;
+<span class="k" data-i18n="pm">±</span>: {(t['margin'] * 100):.1f}</p>
+<table><tr><th data-i18n="year">year</th><th>%</th><th>n</th></tr>{rows}</table>
+<p><span class="k" data-i18n="related">related</span>: {links}</p>
+<p><span class="k" data-i18n="badge">badge</span>:
 <code>&lt;img src="{base}/badge/{slug(t['tag'])}.svg"&gt;</code></p>
-<footer>Доля постов с тегом от всех постов года. Год восстановлен по ID поста,
-это оценка, а не дата загрузки. n — размер выборки по году.
-Данные: rule34.xxx. <a href="../">все теги</a>.</footer>
-</html>"""
+<footer data-i18n="foot"> </footer>
+</body></html>"""
 
 def method(d, years):
     total = sum(d["n"].values())
@@ -180,16 +182,22 @@ def main():
         (out / f"{slug(t['tag'])}.html").write_text(
             page(t, d, years, rel[:a.related], a.base), encoding="utf-8")
 
+    # --- сюда первый блок: список тегов ---
     idx = "".join(f'<li><a href="{slug(t["tag"])}.html">{html.escape(t["tag"])}</a> '
                   f'<span class="k">{t["type"]}</span></li>' for t in tags)
+
+    # --- и сразу за ним второй: сама страница индекса ---
     (out / "index.html").write_text(
-        f"""<!doctype html><meta charset="utf-8"><title>все теги | r34 tag trends</title>
+        f"""<!doctype html><html lang="en"><meta charset="utf-8"><title>all tags</title>
+<script src="../i18n.js"></script>
 <style>body{{background:#111;color:#ddd;font:14px system-ui;padding:24px}}
 a{{color:#6aa8e8}} .k{{color:#777;font-size:11px}} li{{margin:3px 0}}</style>
-<p><a href="../">← дашборд</a></p><h1>Теги</h1><ul>{idx}</ul>""", encoding="utf-8")
+<p><a href="../" data-i18n="dash">← dashboard</a>
+<button onclick="setLang(localStorage.lang==='en'?'ru':'en')">EN / RU</button></p>
+<h1 data-i18n="tags">all tags</h1><ul>{idx}</ul>""", encoding="utf-8")
 
     (Path("web") / "method.html").write_text(method(d, years), encoding="utf-8")
-    
+
     bad = Path("web/badge")
     bad.mkdir(parents=True, exist_ok=True)
     for t in tags:
@@ -198,6 +206,7 @@ a{{color:#6aa8e8}} .k{{color:#777;font-size:11px}} li{{margin:3px 0}}</style>
     urls = [f"{a.base}/", f"{a.base}/method.html", f"{a.base}/compare.html"]
     for f in sorted(Path("web").glob("*/")):
         urls += [f"{a.base}/{f.name}/{p.name}" for p in sorted(f.glob("*.html"))]
+
     today = date.today().isoformat()
     (Path("web") / "sitemap.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?>\n'
