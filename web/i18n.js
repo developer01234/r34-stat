@@ -2,7 +2,7 @@
   const K = {
     ru: { tags: "все теги", franchises: "франшизы", compare: "сравнение", method: "методика",
       search: "поиск тега", sort: "сортировка", by_total: "по объёму", by_rise: "по росту",
-      by_fall: "по падению", n_posts: "n постов", ai: "ИИ, %", trend: "тренд", pm: "±",
+      by_fall: "по падению", by_ai: "по доле ИИ", n_posts: "n постов", ai: "ИИ, %", trend: "тренд", pm: "±",
       jump: "скачок", of: "из", peak: "пик", now: "сейчас", related: "похожие",
       badge: "бейдж", back: "← все теги", dash: "← дашборд", type: "тип", year: "год",
       title: "Популярность тегов по годам (доля постов)",
@@ -10,7 +10,7 @@
       scale: "масштаб общий, пик", cmp: "сравнение тегов" },
     en: { tags: "all tags", franchises: "franchises", compare: "compare", method: "method",
       search: "search tag", sort: "sort", by_total: "by volume", by_rise: "by rise",
-      by_fall: "by fall", n_posts: "n posts", ai: "AI, %", trend: "trend", pm: "±",
+      by_fall: "by fall", by_ai: "by AI share", n_posts: "n posts", ai: "AI, %", trend: "trend", pm: "±",
       jump: "jump", of: "of", peak: "peak", now: "now", related: "related",
       badge: "badge", back: "← all tags", dash: "← dashboard", type: "type", year: "year",
       title: "Tag popularity by year (share of posts)",

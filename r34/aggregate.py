@@ -48,11 +48,12 @@ def main():
     per_year, counts, meta = Counter(), defaultdict(Counter), {}
     ai_by_year = Counter()
     ai_counts = defaultdict(Counter)
+
     for pid, tags, ti, rating in con.execute(
             "SELECT id, tags, tag_info, rating FROM posts"):
         if rating not in ratings:
             continue
-    y = curve.year(pid)
+        y = curve.year(pid)
         per_year[y] += 1
         is_ai = "ai_generated" in tags
         if is_ai:

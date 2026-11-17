@@ -92,6 +92,7 @@ def page(t, d, years, rel, base):
 <span class="k" data-i18n="now">now</span>: {cur:.2f}% &nbsp;
 <span class="k" data-i18n="trend">trend</span>: {t['trend']}× &nbsp;
 <span class="k" data-i18n="pm">±</span>: {(t['margin'] * 100):.1f}</p>
+<span class="k">AI</span>: {(t['ai'] * 100):.1f}% &nbsp;
 <table><tr><th data-i18n="year">year</th><th>%</th><th>n</th></tr>{rows}</table>
 <p><span class="k" data-i18n="related">related</span>: {links}</p>
 <p><span class="k" data-i18n="badge">badge</span>:

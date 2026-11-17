@@ -31,6 +31,7 @@
   <option value="total" data-i18n="by_total">by volume</option>
   <option value="trend" data-i18n="by_rise">by rise</option>
   <option value="fall" data-i18n="by_fall">by fall</option>
+  <option value="ai" data-i18n="by_ai">by AI share</option>
  </select> <span id="cnt"></span></p>
 <table id="tbl"></table>
 <footer id="foot"></footer>
@@ -51,6 +52,7 @@ function render(){
   let rows=DATA.tags.filter(t=>!q||t.tag.includes(q));
   if(mode==='trend') rows.sort((a,b)=>b.trend-a.trend);
   else if(mode==='fall') rows.sort((a,b)=>a.trend-b.trend);
+  else if(mode==='ai') rows.sort((a,b)=>b.ai-a.ai);
   else rows.sort((a,b)=>b.total-a.total);
 
   document.getElementById('cnt').textContent=`${rows.length} ${t('of')} ${DATA.tags.length}`;
@@ -71,7 +73,7 @@ function render(){
         const a=Math.pow(Math.min(1,v/peak),0.45).toFixed(3);
         return `<td style="background:rgba(${rgb},${a})" title="${y}: ${(v*100).toFixed(2)}%">${v?(v*100).toFixed(2):''}</td>`;
       }).join('')
-      +`<td class="${cls}">${tg.trend}×</td><td class="mrg">${(tg.margin*100).toFixed(1)}</td><td class="jump">${tg.jump}×</td></tr>`);
+      +`<td class="${cls}">${tg.trend}×</td><td class="mrg">${(tg.margin*100).toFixed(1)}</td><td class="jump">${tg.jump}×</td></tr><td class="mrg">${(tg.ai*100).toFixed(0)}</td></tr>`);
   }
   document.getElementById('tbl').innerHTML=h.join('');
   document.getElementById('foot').innerHTML=
