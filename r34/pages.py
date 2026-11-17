@@ -105,12 +105,15 @@ def page(t, d, years, rel, base):
 <footer data-i18n="foot"> </footer>
 </body></html>"""
 
-def method(d, years):
+def method(d, years, base):
     total = sum(d["n"].values())
     rows = "".join(f"<tr><td>{y}</td><td>{d['n'].get(y, 0)}</td></tr>" for y in years)
-    return f"""<!doctype html><html lang="ru"><head><meta charset="utf-8">
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>методика | r34 tag trends</title>
+<title>methodology | r34 tag trends</title>
+<meta name="description" content="How tag trends are computed: ID-to-date calibration, sampling, confidence intervals, and known artifacts.">
+<link rel="canonical" href="{base}/method.html">
+<meta name="robots" content="index,follow">
 <style>
  body{{background:#111;color:#ddd;font:14px system-ui;padding:24px;max-width:760px;line-height:1.65}}
  a{{color:#6aa8e8}} h2{{font-size:16px;margin-top:26px}} code{{color:#e0b23a}}
@@ -202,7 +205,7 @@ a{{color:#6aa8e8}} .k{{color:#777;font-size:11px}} li{{margin:3px 0}}</style>
 <button onclick="setLang(localStorage.lang==='en'?'ru':'en')">EN / RU</button></p>
 <h1 data-i18n="tags">all tags</h1><ul>{idx}</ul>""", encoding="utf-8")
 
-    (Path("web") / "method.html").write_text(method(d, years), encoding="utf-8")
+    (Path("web") / "method.html").write_text(method(d, years, a.base), encoding="utf-8")
 
     bad = Path("web/badge")
     bad.mkdir(parents=True, exist_ok=True)
