@@ -9,6 +9,8 @@ NOISE = {"tagme", "1girl", "1girls", "1boy", "solo", "absurd_res", "hi_res",
          "english_commentary", "artist_name", "signature", "watermark",
          "absurdres", "ai_generated", "ai", "ai_art", "ai_assisted"}
 
+ALL_TYPES = "general,copyright,character,artist,metadata"
+
 
 class Curve:
     def __init__(self, pts):
@@ -29,18 +31,23 @@ class Curve:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--types", default="general,copyright,character,artist,metadata")
+    ap.add_argument("--types", default=ALL_TYPES)
     ap.add_argument("--ratings", default="explicit,questionable,safe")
     ap.add_argument("--min-total", type=int, default=80)
+    ap.add_argument("--min-total-rare", type=int, default=5)
     ap.add_argument("--min-years", type=int, default=5)
+    ap.add_argument("--min-years-rare", type=int, default=2)
     ap.add_argument("--max-global", type=int, default=3_000_000)
     ap.add_argument("--max-jump", type=float, default=8.0)
     ap.add_argument("--sort", choices=["total", "trend", "ai"], default="total")
     ap.add_argument("--top", type=int, default=300)
+    ap.add_argument("--flat", action="store_true")
     ap.add_argument("--out", default="web/data.json")
     a = ap.parse_args()
-    keep = set(a.types.split(","))
+
+    keep = set(x for x in a.types.split(",") if x)
     ratings = set(a.ratings.split(","))
+    print(f"types={sorted(keep)}")
 
     curve = Curve(json.loads(Path("curve.json").read_text()))
     con = sqlite3.connect("r34.db")
@@ -77,10 +84,13 @@ def main():
     for t, (typ, g) in meta.items():
         if typ not in keep or g > a.max_global:
             continue
+        rare = typ in ("artist", "character")
+        floor = a.min_total_rare if rare else a.min_total
+        need_years = a.min_years_rare if rare else a.min_years
         sh = {y: counts[y][t] / per_year[y] for y in years}
         total = sum(counts[y][t] for y in years)
         present = len([y for y in years if counts[y][t]])
-        if total < a.min_total or present < a.min_years:
+        if total < floor or present < need_years:
             continue
         jumps = [sh[y2] / sh[y1] for y1, y2 in zip(years, years[1:]) if sh[y1] > 0]
         jump = max(jumps) if jumps else 1.0
@@ -97,15 +107,26 @@ def main():
 
     if a.max_jump:
         rows = [r for r in rows if r["jump"] <= a.max_jump]
+
     keys = {"trend": lambda r: -r["trend"], "ai": lambda r: -r["ai"],
             "total": lambda r: -r["total"]}
-    rows.sort(key=keys[a.sort])
+    if a.flat:
+        rows.sort(key=keys[a.sort])
+        rows = rows[:a.top]
+    else:
+        picked = []
+        for typ in sorted(keep):
+            sub = [r for r in rows if r["type"] == typ]
+            sub.sort(key=keys[a.sort])
+            print(f"  {typ}: {len(sub)} после фильтров")
+            picked += sub[:a.top]
+        rows = sorted(picked, key=lambda r: -r["total"])
 
     Path(a.out).write_text(json.dumps(
         {"years": [str(y) for y in years], "n": dict(per_year),
          "ai": {str(y): round(ai_by_year[y] / per_year[y], 4) for y in years},
-         "ratings": sorted(ratings), "tags": rows[:a.top]}, ensure_ascii=False))
-    print(f"{len(rows)} тегов, {len(years)} лет → {a.out}")
+         "ratings": sorted(ratings), "tags": rows}, ensure_ascii=False))
+    print(f"{len(rows)} тегов → {a.out}")
 
 
 main()

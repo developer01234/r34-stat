@@ -91,12 +91,17 @@ def page(t, d, years, rel, base):
 <p><span class="k" data-i18n="peak">peak</span>: {peak:.2f}% {peak_y} &nbsp;
 <span class="k" data-i18n="now">now</span>: {cur:.2f}% &nbsp;
 <span class="k" data-i18n="trend">trend</span>: {t['trend']}× &nbsp;
+<span class="k" data-i18n="aish">AI</span>: {(t['ai'] * 100):.1f}%
+<svg width="120" height="7" style="vertical-align:middle">
+<rect width="120" height="7" fill="#222"/>
+<rect width="{t['ai'] * 120:.0f}" height="7" fill="#888"/>
+</svg> &nbsp;
 <span class="k" data-i18n="pm">±</span>: {(t['margin'] * 100):.1f}</p>
-<span class="k">AI</span>: {(t['ai'] * 100):.1f}% &nbsp;
 <table><tr><th data-i18n="year">year</th><th>%</th><th>n</th></tr>{rows}</table>
 <p><span class="k" data-i18n="related">related</span>: {links}</p>
 <p><span class="k" data-i18n="badge">badge</span>:
 <code>&lt;img src="{base}/badge/{slug(t['tag'])}.svg"&gt;</code></p>
+<p class="k" data-i18n="ainote">AI share</p>
 <footer data-i18n="foot"> </footer>
 </body></html>"""
 

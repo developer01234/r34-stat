@@ -12,9 +12,13 @@
  .pos{color:#6c6}.neg{color:#c66}.jump{color:#777}.mrg{color:#888}
  .metadata{color:#e0b23a}.copyright{color:#e87bb0}
  .character{color:#5fbf6a}.artist{color:#a8763e}.general{color:#6aa8e8}
- .legend{margin:0 0 12px}.legend span{margin-right:16px}
+ .legend{margin:0 0 12px}
+ .legend button{background:none;border:0;padding:0;margin-right:16px;cursor:pointer;font:inherit}
+ .legend button:not(.on){opacity:.35}
+ .legend button.on{text-decoration:underline}
  .nrow td{color:#666;font-size:11px;border-top:1px solid #333}
  input,select,button{background:#1b1b1b;color:var(--fg);border:1px solid #444;padding:3px 5px}
+ .legend button{background:none;border:0;padding:0}
  footer{color:#777;margin-top:28px;line-height:1.6;max-width:780px}
 </style></head><body>
 <h2 data-i18n="title">Tag popularity by year (share of posts)</h2>
@@ -22,41 +26,49 @@
  · <a href="compare.html" data-i18n="compare">compare</a> · <a href="method.html" data-i18n="method">method</a>
  <button onclick="setLang(localStorage.lang==='en'?'ru':'en')">EN / RU</button></p>
 <div class="legend">
- <span class="metadata">■ metadata</span><span class="copyright">■ copyright</span>
- <span class="character">■ character</span><span class="artist">■ artist</span>
- <span class="general">■ general</span>
+ <button data-type="metadata" class="metadata">■ metadata</button>
+ <button data-type="copyright" class="copyright">■ copyright</button>
+ <button data-type="character" class="character">■ character</button>
+ <button data-type="artist" class="artist">■ artist</button>
+ <button data-type="general" class="general">■ general</button>
+ <button data-type="" class="all" data-i18n="all">all</button>
 </div>
 <p><input id="q" data-i18n-ph="search" placeholder="search tag" size="24">
  <span data-i18n="sort">sort</span>: <select id="sort">
   <option value="total" data-i18n="by_total">by volume</option>
   <option value="trend" data-i18n="by_rise">by rise</option>
   <option value="fall" data-i18n="by_fall">by fall</option>
-  <option value="ai" data-i18n="by_ai">by AI share</option>
  </select> <span id="cnt"></span></p>
 <table id="tbl"></table>
 <footer id="foot"></footer>
 <script>
 const TINT={metadata:[224,178,58],copyright:[232,123,176],character:[95,191,106],
             artist:[168,118,62],general:[106,168,232]};
-let DATA=null;
+let DATA=null, FT='';
 fetch('data.json').then(r=>r.json()).then(d=>{
   DATA=d; render();
   document.getElementById('q').oninput=render;
   document.getElementById('sort').onchange=render;
 });
 window.rerender=render;
+document.querySelectorAll('.legend button').forEach(b=>b.onclick=()=>{
+  FT = (b.dataset.type===FT) ? '' : b.dataset.type;
+  document.querySelectorAll('.legend button').forEach(x=>
+    x.classList.toggle('on', x.dataset.type===FT && FT!==''));
+  render();
+});
 function render(){
   if(!DATA) return;
   const q=document.getElementById('q').value.trim().toLowerCase();
   const mode=document.getElementById('sort').value;
-  let rows=DATA.tags.filter(t=>!q||t.tag.includes(q));
+  let rows=DATA.tags.filter(x=>!q||x.tag.includes(q));
+  if(FT) rows=rows.filter(x=>x.type===FT);
   if(mode==='trend') rows.sort((a,b)=>b.trend-a.trend);
   else if(mode==='fall') rows.sort((a,b)=>a.trend-b.trend);
-  else if(mode==='ai') rows.sort((a,b)=>b.ai-a.ai);
   else rows.sort((a,b)=>b.total-a.total);
 
   document.getElementById('cnt').textContent=`${rows.length} ${t('of')} ${DATA.tags.length}`;
-  const peak=Math.max(1e-9,...rows.flatMap(t=>Object.values(t.shares)));
+  const peak=Math.max(1e-9,...rows.flatMap(x=>Object.values(x.shares)));
   const h=[`<tr><th class="t">${t('n_posts').replace('n ','')}</th>`
     +DATA.years.map(y=>`<th>${y}</th>`).join('')
     +`<th>${t('trend')}</th><th>${t('pm')}</th><th>${t('jump')}</th></tr>`];
@@ -73,10 +85,9 @@ function render(){
         const a=Math.pow(Math.min(1,v/peak),0.45).toFixed(3);
         return `<td style="background:rgba(${rgb},${a})" title="${y}: ${(v*100).toFixed(2)}%">${v?(v*100).toFixed(2):''}</td>`;
       }).join('')
-      +`<td class="${cls}">${tg.trend}×</td><td class="mrg">${(tg.margin*100).toFixed(1)}</td><td class="jump">${tg.jump}×</td></tr><td class="mrg">${(tg.ai*100).toFixed(0)}</td></tr>`);
+      +`<td class="${cls}">${tg.trend}×</td><td class="mrg">${(tg.margin*100).toFixed(1)}</td><td class="jump">${tg.jump}×</td></tr>`);
   }
   document.getElementById('tbl').innerHTML=h.join('');
-  document.getElementById('foot').innerHTML=
-    `<p>${t('foot').replace('{r}', DATA.ratings.join(', '))}</p>`;
+  document.getElementById('foot').innerHTML=`<p>${t('foot').replace('{r}', DATA.ratings.join(', '))}</p>`;
 }
 </script></body></html>
