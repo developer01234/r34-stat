@@ -193,6 +193,9 @@ def main():
         used[s] = t["tag"]
         vecs[t["tag"]] = [t["shares"].get(y, 0) for y in years]
 
+    (Path("web") / "slugs.json").write_text(
+        json.dumps(used, ensure_ascii=False), encoding="utf-8")
+
     for t in tags:
         rel = [o["tag"] for o in tags if o["tag"] != t["tag"]]
         rel.sort(key=lambda o: -corr(vecs[t["tag"]], vecs[o]))

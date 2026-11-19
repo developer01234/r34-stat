@@ -24,6 +24,9 @@
  input,select,button{background:#1b1b1b;color:var(--fg);border:1px solid #444;padding:3px 5px}
  .legend button{background:none;border:0;padding:0}
  footer{color:#777;margin-top:28px;line-height:1.6;max-width:780px}
+ .t a{color:inherit;text-decoration:none}
+ .t a:hover{text-decoration:underline}
+ tr{content-visibility:auto}
 </style></head><body>
 <h2 data-i18n="title">Tag popularity by year (share of posts)</h2>
 <p><a href="tag/" data-i18n="tags">all tags</a> · <a href="franchise/" data-i18n="franchises">franchises</a>
@@ -44,19 +47,26 @@
   <option value="fall" data-i18n="by_fall">by fall</option>
  </select> <span id="cnt"></span></p>
 <table id="tbl"></table>
+<p><button id="more" hidden></button></p>
 <footer id="foot"></footer>
 <script>
 const TINT={metadata:[224,178,58],copyright:[232,123,176],character:[95,191,106],
             artist:[168,118,62],general:[106,168,232]};
 let DATA=null, FT='';
-fetch('data.json').then(r=>r.json()).then(d=>{
-  DATA=d; render();
-  document.getElementById('q').oninput=render;
-  document.getElementById('sort').onchange=render;
+let SLUG={};
+let LIM=100;
+Promise.all([
+  fetch('data.json').then(r=>r.json()),
+  fetch('slugs.json').then(r=>r.json()).catch(()=>({}))
+]).then(([d,s])=>{
+  DATA=d; SLUG=s; render();
+	document.getElementById('q').oninput=()=>{LIM=100;render();};
+	document.getElementById('sort').onchange=()=>{LIM=100;render();};
 });
 window.rerender=render;
 document.querySelectorAll('.legend button').forEach(b=>b.onclick=()=>{
   FT = (b.dataset.type===FT) ? '' : b.dataset.type;
+  LIM=100;
   document.querySelectorAll('.legend button').forEach(x=>
     x.classList.toggle('on', x.dataset.type===FT && FT!==''));
   render();
@@ -72,7 +82,8 @@ function render(){
   else rows.sort((a,b)=>b.total-a.total);
 
   document.getElementById('cnt').textContent=`${rows.length} ${t('of')} ${DATA.tags.length}`;
-  const peak=Math.max(1e-9,...rows.flatMap(x=>Object.values(x.shares)));
+  const shown=rows.slice(0,LIM);
+  const peak=Math.max(1e-9,...shown.flatMap(x=>Object.values(x.shares)));
   const h=[`<tr><th class="t">${t('n_posts').replace('n ','')}</th>`
     +DATA.years.map(y=>`<th>${y}</th>`).join('')
     +`<th>${t('trend')}</th><th>${t('pm')}</th><th>${t('jump')}</th></tr>`];
@@ -80,10 +91,10 @@ function render(){
     +DATA.years.map(y=>`<td>${DATA.n[y]||0}</td>`).join('')+'<td></td><td></td><td></td></tr>');
   h.push(`<tr class="nrow"><td class="t">${t('ai')}</td>`
     +DATA.years.map(y=>`<td>${((DATA.ai[y]||0)*100).toFixed(0)}</td>`).join('')+'<td></td><td></td><td></td></tr>');
-  for(const tg of rows){
+  for(const tg of shown){
     const rgb=(TINT[tg.type]||TINT.general).join(',');
     const cls=tg.trend>1.15?'pos':tg.trend<0.85?'neg':'';
-    h.push(`<tr><th class="t ${tg.type}">${tg.tag}</th>`
+    h.push(`<tr><th class="t ${tg.type}"><a href="tag/${SLUG[tg.tag]||tg.tag}.html">${tg.tag}</a></th>`
       +DATA.years.map(y=>{
         const v=tg.shares[y]||0;
         const a=Math.pow(Math.min(1,v/peak),0.45).toFixed(3);
@@ -92,6 +103,12 @@ function render(){
       +`<td class="${cls}">${tg.trend}×</td><td class="mrg">${(tg.margin*100).toFixed(1)}</td><td class="jump">${tg.jump}×</td></tr>`);
   }
   document.getElementById('tbl').innerHTML=h.join('');
+  const more=document.getElementById('more');
+  if(rows.length>LIM){
+    more.hidden=false;
+    more.textContent=`+${Math.min(100,rows.length-LIM)} / ${rows.length-LIM}`;
+    more.onclick=()=>{LIM+=100;render();};
+  } else more.hidden=true;
   document.getElementById('foot').innerHTML=`<p>${t('foot').replace('{r}', DATA.ratings.join(', '))}</p>`;
 }
 </script></body></html>
