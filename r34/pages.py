@@ -1,10 +1,14 @@
 from __future__ import annotations
 import argparse, html, json, math, re
+from collections import defaultdict
 from datetime import date
 from pathlib import Path
 
 TINT = {"metadata": "#e0b23a", "copyright": "#e87bb0", "character": "#5fbf6a",
         "artist": "#a8763e", "general": "#6aa8e8"}
+
+LABELS = {"artist": "artists", "copyright": "franchises", "character": "characters",
+          "general": "similar", "metadata": "related meta"}
 
 
 def slug(tag):
@@ -18,7 +22,7 @@ def corr(a, b):
         return 0.0
     ma, mb = sum(a) / n, sum(b) / n
     va = sum((x - ma) ** 2 for x in a)
-    vb = sum((x - mb) ** 2 for x in b)
+    vb = sum((y - mb) ** 2 for y in b)
     if va == 0 or vb == 0:
         return 0.0
     return sum((x - ma) * (y - mb) for x, y in zip(a, b)) / math.sqrt(va * vb)
@@ -41,6 +45,7 @@ def spark(vals, years, color):
             f'cy="{h - pad - (vals[peak_i] / mx) * (h - 2 * pad):.1f}" r="3" fill="#fff"/>'
             f'{marks}</svg>')
 
+
 def badge(t, years):
     vals = [t["shares"].get(y, 0) for y in years]
     mx = max(vals) or 1
@@ -55,7 +60,8 @@ def badge(t, years):
             f'<polyline points="{pts}" fill="none" stroke="#6aa8e8" stroke-width="1.5"/>'
             f'</svg>')
 
-def page(t, d, years, rel, base):
+
+def page(t, d, years, rel, base, used):
     vals = [t["shares"].get(y, 0) * 100 for y in years]
     peak = max(vals)
     peak_y = years[vals.index(peak)]
@@ -64,7 +70,15 @@ def page(t, d, years, rel, base):
     rows = "".join(f"<tr><td>{y}</td><td>{v:.2f}%</td>"
                    f"<td>{d['n'].get(y, 0)}</td></tr>"
                    for y, v in zip(years, vals))
-    links = " ".join(f'<a href="{slug(r)}.html">{html.escape(r)}</a>' for r in rel)
+    blocks = ""
+    for typ, lst in rel.items():
+        if not lst:
+            continue
+        blocks += (f'<p><span class="k">{LABELS.get(typ, typ)}</span>: '
+                   + " ".join(f'<a href="{used.get(r, slug(r))}.html">{html.escape(r)}</a>'
+                              for r in lst) + "</p>")
+    blocks += (f'<p><a href="../{t["type"]}/index.html">'
+               f'all {LABELS.get(t["type"], t["type"])}</a></p>')
     desc = (f"{t['tag']} on rule34.xxx: share of posts by year, peak {peak:.2f}% "
             f"in {peak_y}, now {cur:.2f}%.")
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -98,12 +112,46 @@ def page(t, d, years, rel, base):
 </svg> &nbsp;
 <span class="k" data-i18n="pm">±</span>: {(t['margin'] * 100):.1f}</p>
 <table><tr><th data-i18n="year">year</th><th>%</th><th>n</th></tr>{rows}</table>
-<p><span class="k" data-i18n="related">related</span>: {links}</p>
+{blocks}
 <p><span class="k" data-i18n="badge">badge</span>:
 <code>&lt;img src="{base}/badge/{slug(t['tag'])}.svg"&gt;</code></p>
 <p class="k" data-i18n="ainote">AI share</p>
 <footer data-i18n="foot"> </footer>
 </body></html>"""
+
+
+def index_page(rows, title, base, dirname):
+    body = "".join(
+        f'<tr data-total="{r["total"]}" data-ai="{r["ai"]}" data-trend="{r["trend"]}">'
+        f'<td><a href="../tag/{slug(r["tag"])}.html">{html.escape(r["tag"])}</a></td>'
+        f'<td>{r["total"]}</td><td>{(r["ai"] * 100):.0f}</td><td>{r["trend"]}×</td></tr>'
+        for r in rows)
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>{title} — r34 tag trends</title>
+<meta name="description" content="{title} on rule34.xxx by year: volume, AI share and trend.">
+<link rel="canonical" href="{base}/{dirname}/">
+<script src="../i18n.js"></script>
+<style>
+ body{{background:#111;color:#ddd;font:13px system-ui;padding:24px;max-width:760px}}
+ a{{color:#6aa8e8}} table{{border-collapse:collapse;margin-top:14px}}
+ td,th{{padding:2px 10px;text-align:left;font-weight:400;border-bottom:1px solid #222}}
+ select{{background:#1b1b1b;color:#ddd;border:1px solid #444;padding:2px}}
+</style></head><body>
+<p><a href="../" data-i18n="dash">← dashboard</a> · <a href="../tag/" data-i18n="tags">all tags</a></p>
+<h1>{title}</h1>
+<p>sort: <select id="s">
+<option value="total">by volume</option>
+<option value="ai">by AI share</option>
+<option value="trend">by rise</option></select></p>
+<table><thead><tr><th>tag</th><th>posts</th><th>AI %</th><th>trend</th></tr></thead>
+<tbody id="tb">{body}</tbody></table>
+<script>
+document.getElementById('s').onchange=e=>{{
+  const k=e.target.value, tb=document.getElementById('tb');
+  [...tb.rows].sort((a,b)=>b.dataset[k]-a.dataset[k]).forEach(r=>tb.appendChild(r));
+}};
+</script></body></html>"""
+
 
 def method(d, years, base):
     total = sum(d["n"].values())
@@ -170,6 +218,7 @@ so it understates the real figure.</p>
 Data belongs to rule34.xxx and to uploaders. Unofficial project.</p>
 </body></html>"""
 
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", default="https://developer01234.github.io/r34-stat/web")
@@ -193,20 +242,19 @@ def main():
         used[s] = t["tag"]
         vecs[t["tag"]] = [t["shares"].get(y, 0) for y in years]
 
-    (Path("web") / "slugs.json").write_text(
-        json.dumps(used, ensure_ascii=False), encoding="utf-8")
-
     for t in tags:
-        rel = [o["tag"] for o in tags if o["tag"] != t["tag"]]
-        rel.sort(key=lambda o: -corr(vecs[t["tag"]], vecs[o]))
+        others = [o for o in tags if o["tag"] != t["tag"]]
+        others.sort(key=lambda o: -corr(vecs[t["tag"]], vecs[o["tag"]]))
+        rel = defaultdict(list)
+        for o in others:
+            cap = a.related if o["type"] == t["type"] else 4
+            if len(rel[o["type"]]) < cap:
+                rel[o["type"]].append(o["tag"])
         (out / f"{slug(t['tag'])}.html").write_text(
-            page(t, d, years, rel[:a.related], a.base), encoding="utf-8")
+            page(t, d, years, rel, a.base, used), encoding="utf-8")
 
-    # --- сюда первый блок: список тегов ---
     idx = "".join(f'<li><a href="{slug(t["tag"])}.html">{html.escape(t["tag"])}</a> '
                   f'<span class="k">{t["type"]}</span></li>' for t in tags)
-
-    # --- и сразу за ним второй: сама страница индекса ---
     (out / "index.html").write_text(
         f"""<!doctype html><html lang="en"><meta charset="utf-8"><title>all tags</title>
 <script src="../i18n.js"></script>
@@ -216,12 +264,22 @@ a{{color:#6aa8e8}} .k{{color:#777;font-size:11px}} li{{margin:3px 0}}</style>
 <button onclick="setLang(localStorage.lang==='en'?'ru':'en')">EN / RU</button></p>
 <h1 data-i18n="tags">all tags</h1><ul>{idx}</ul>""", encoding="utf-8")
 
+    for typ in sorted({x["type"] for x in tags}):
+        sub = sorted([x for x in tags if x["type"] == typ], key=lambda r: -r["total"])
+        d_dir = Path("web") / typ
+        d_dir.mkdir(parents=True, exist_ok=True)
+        (d_dir / "index.html").write_text(
+            index_page(sub, f"all {typ}", a.base, typ), encoding="utf-8")
+
     (Path("web") / "method.html").write_text(method(d, years, a.base), encoding="utf-8")
 
     bad = Path("web/badge")
     bad.mkdir(parents=True, exist_ok=True)
     for t in tags:
         (bad / f"{slug(t['tag'])}.svg").write_text(badge(t, years), encoding="utf-8")
+
+    (Path("web") / "slugs.json").write_text(json.dumps(used, ensure_ascii=False),
+                                            encoding="utf-8")
 
     urls = [f"{a.base}/", f"{a.base}/method.html", f"{a.base}/compare.html"]
     for f in sorted(Path("web").glob("*/")):
@@ -235,7 +293,7 @@ a{{color:#6aa8e8}} .k{{color:#777;font-size:11px}} li{{margin:3px 0}}</style>
         + "</urlset>\n", encoding="utf-8")
     (Path("web") / "robots.txt").write_text(
         f"User-agent: *\nAllow: /\nSitemap: {a.base}/sitemap.xml\n", encoding="utf-8")
-    print(f"{len(tags)} страниц + sitemap")
+    print(f"{len(tags)} страниц, индексы по типам, sitemap")
 
 
 main()
