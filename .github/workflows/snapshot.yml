@@ -22,7 +22,7 @@ jobs:
           R34_USER_ID: ${{ secrets.R34_USER_ID }}
           R34_API_KEY: ${{ secrets.R34_API_KEY }}
           R34_RPS: "1"
-        run: py -V && python -m r34.harvest --samples 2000 --width 100 --seed ${{ github.run_number }}
+        run: python -V && python -m r34.harvest --samples 2000 --width 100 --seed ${{ github.run_number }}
       - name: calibrate
         run: python -m r34.calibrate
       - name: aggregate
