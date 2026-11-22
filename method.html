@@ -1,0 +1,61 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>methodology — r34 tag trends</title>
+<meta name="description" content="How tag trends are computed: ID-to-date calibration, random sampling, confidence intervals, and known artifacts.">
+<link rel="canonical" href="https://developer01234.github.io/r34-stat/method.html">
+<meta name="robots" content="index,follow">
+<script src="i18n.js"></script>
+<style>
+ body{background:#111;color:#ddd;font:14px system-ui;padding:24px;max-width:760px;line-height:1.65}
+ a{color:#6aa8e8} h1{font-size:22px} h2{font-size:16px;margin-top:26px}
+ code{color:#e0b23a}
+ table{border-collapse:collapse} td,th{padding:2px 12px;border-bottom:1px solid #222;text-align:left}
+ button{background:#1b1b1b;color:#ddd;border:1px solid #444;padding:2px 6px}
+</style></head><body>
+<p><a href="./" data-i18n="dash">← dashboard</a>
+ <button onclick="setLang(localStorage.lang==='en'?'ru':'en')">EN / RU</button></p>
+<h1>Methodology</h1>
+<p>This project measures what share of posts in each year carried a given tag.
+Sample: <b>463164</b> posts, 2011–2026.</p>
+
+<h2>Where the year comes from</h2>
+<p>The rule34.xxx API exposes no upload date. The only timestamp in a post object is
+<code>change</code>, the time of the last edit, and it is always greater than or equal
+to the upload time. Posts are sorted by ID and IDs grow monotonically, so the year is
+reconstructed from the ID: ID windows are matched against the minimum <code>change</code>
+in the window, the series is smoothed monotonically (pool-adjacent-violators), and each
+post is then assigned to a year by interpolation.</p>
+<p>This is an <b>estimate</b>. Retagging old posts drags it forward, and at year
+boundaries the error can reach several months.</p>
+
+<h2>Sampling</h2>
+<p>ID windows are drawn at random across the whole range rather than walked in order,
+to avoid bias towards recent uploads. Sample size per year:</p>
+<table><tr><th>year</th><th>posts</th></tr><tr><td>2011</td><td>20264</td></tr><tr><td>2012</td><td>6550</td></tr><tr><td>2013</td><td>5535</td></tr><tr><td>2014</td><td>4598</td></tr><tr><td>2015</td><td>6453</td></tr><tr><td>2016</td><td>8062</td></tr><tr><td>2017</td><td>9597</td></tr><tr><td>2018</td><td>8508</td></tr><tr><td>2019</td><td>12589</td></tr><tr><td>2020</td><td>17567</td></tr><tr><td>2021</td><td>26823</td></tr><tr><td>2022</td><td>41182</td></tr><tr><td>2023</td><td>52337</td></tr><tr><td>2024</td><td>69792</td></tr><tr><td>2025</td><td>93967</td></tr><tr><td>2026</td><td>79340</td></tr></table>
+<p>Early years are thin: there were fewer uploads before 2014, and a random sample
+rarely lands there. The left edge of every chart is noisy, and those shares are a
+rough guide, not a measurement.</p>
+
+<h2>Margin of error</h2>
+<p>The вЂњ±вЂќ column is a 95% confidence interval computed as
+<code>1.96·√(p(1−p)/n)</code> over the last three years. At a 10% share and n=3000
+that is ±1.1 pp. A difference smaller than the interval is not a signal.</p>
+
+<h2>Artifacts</h2>
+<p>The “jump” column is the largest one-year rise in share. Values above 8 are dropped:
+that profile means a tag was introduced or retagged in bulk, not that tastes shifted.
+Example — <code>genitals</code>: 0.4% in 2020 and 22% in 2021, a 54-fold rise.</p>
+<p>Gradual changes in tagging convention slip past the filter. The fall of
+<code>human</code> mostly means people stopped listing the species, not that fewer
+humans appear in the images.</p>
+
+<h2>What is not measured</h2>
+<p>Share is neither quality nor views. <code>score</code> is useless for this: votes are
+rare and values are 0 or 1. Deleted posts never enter the sample, so the history is
+slightly censored by moderation. The <code>ai_generated</code> share is applied by hand,
+so it understates the real figure.</p>
+
+<h2>Data and license</h2>
+<p>Raw aggregates: <a href="data.json">data.json</a>. Code: MIT.
+Data belongs to rule34.xxx and to uploaders. Unofficial project.</p>
+</body></html>

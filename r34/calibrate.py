@@ -29,7 +29,7 @@ async def main():
     async with httpx.AsyncClient(headers={"User-Agent": UA}, timeout=60) as client:
         for lo in range(1, top - WIDTH, step):
             posts = await fetch(client, f"id:>{lo} id:<{lo + WIDTH}", limit=1000)
-            # change >= upload; РјРёРЅРёРјСѓРј РїРѕ РѕРєРЅСѓ вЂ” Р»СѓС‡С€Р°СЏ РѕС†РµРЅРєР° РІСЂРµРјРµРЅРё Р·Р°РіСЂСѓР·РєРё
+            # change >= upload; РјРёРЅРёРјСѓРј РїРѕ РѕРєРЅСѓ — Р»СѓС‡С€Р°СЏ РѕС†РµРЅРєР° РІСЂРµРјРµРЅРё Р·Р°РіСЂСѓР·РєРё
             ts = [int(p["change"]) for p in posts if p.get("change")]
             if len(ts) >= 5:
                 pts.append((lo + WIDTH // 2, min(ts)))
@@ -37,7 +37,7 @@ async def main():
     pts.sort()
     curve = pava([p[0] for p in pts], [p[1] for p in pts])
     Path("curve.json").write_text(json.dumps(curve))
-    print(f"\nС‚РѕС‡РµРє: {len(curve)} в†’ curve.json")
+    print(f"\nС‚РѕС‡РµРє: {len(curve)} → curve.json")
 
 
 asyncio.run(main())

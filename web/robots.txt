@@ -1,3 +1,0 @@
-User-agent: *
-Allow: /
-Sitemap: https://developer01234.github.io/r34-stat/web/sitemap.xml

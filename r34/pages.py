@@ -195,7 +195,7 @@ rarely lands there. The left edge of every chart is noisy, and those shares are 
 rough guide, not a measurement.</p>
 
 <h2>Margin of error</h2>
-<p>The “±” column is a 95% confidence interval computed as
+<p>The вЂњ±вЂќ column is a 95% confidence interval computed as
 <code>1.96·√(p(1−p)/n)</code> over the last three years. At a 10% share and n=3000
 that is ±1.1 pp. A difference smaller than the interval is not a signal.</p>
 
@@ -221,11 +221,11 @@ Data belongs to rule34.xxx and to uploaders. Unofficial project.</p>
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--base", default="https://developer01234.github.io/r34-stat/web")
+    ap.add_argument("--base", default="https://developer01234.github.io/r34-stat")
     ap.add_argument("--limit", type=int, default=300)
     ap.add_argument("--related", type=int, default=6)
-    ap.add_argument("--data", default="web/data.json")
-    ap.add_argument("--out", default="web/tag")
+    ap.add_argument("--data", default="data.json")
+    ap.add_argument("--out", default="tag")
     a = ap.parse_args()
 
     d = json.loads(Path(a.data).read_text(encoding="utf-8"))
@@ -266,32 +266,46 @@ a{{color:#6aa8e8}} .k{{color:#777;font-size:11px}} li{{margin:3px 0}}</style>
 
     for typ in sorted({x["type"] for x in tags}):
         sub = sorted([x for x in tags if x["type"] == typ], key=lambda r: -r["total"])
-        d_dir = Path("web") / typ
+        d_dir = Path(typ)
         d_dir.mkdir(parents=True, exist_ok=True)
         (d_dir / "index.html").write_text(
             index_page(sub, f"all {typ}", a.base, typ), encoding="utf-8")
+    
+    for name, subset, label in [
+        ("rising", [x for x in tags if x["trend"] > 1.5], "biggest risers"),
+        ("falling", [x for x in tags if x["trend"] < 0.7], "biggest fallers"),
+    ]:
+        sub = sorted(subset, key=lambda r: (-r["trend"] if name == "rising" else r["trend"]))[:200]
+        if not sub:
+            continue
+        d_dir = Path(name)
+        d_dir.mkdir(parents=True, exist_ok=True)
+        (d_dir / "index.html").write_text(
+            index_page(sub, label, a.base, name), encoding="utf-8")
 
-    (Path("web") / "method.html").write_text(method(d, years, a.base), encoding="utf-8")
+    (Path("method.html")).write_text(method(d, years, a.base), encoding="utf-8")
 
-    bad = Path("web/badge")
+    bad = Path("badge")
     bad.mkdir(parents=True, exist_ok=True)
     for t in tags:
         (bad / f"{slug(t['tag'])}.svg").write_text(badge(t, years), encoding="utf-8")
 
-    (Path("web") / "slugs.json").write_text(json.dumps(used, ensure_ascii=False),
+    (Path("slugs.json")).write_text(json.dumps(used, ensure_ascii=False),
                                             encoding="utf-8")
 
     urls = [f"{a.base}/", f"{a.base}/method.html", f"{a.base}/compare.html"]
-    for f in sorted(Path("web").glob("*/")):
-        urls += [f"{a.base}/{f.name}/{p.name}" for p in sorted(f.glob("*.html"))]
+    for name in ["tag", "badge", "artist", "character", "copyright", "general", "metadata", "rising", "falling"]:
+        p = Path(name)
+        if p.is_dir():
+            urls += [f"{a.base}/{name}/{x.name}" for x in sorted(p.glob("*.html"))]
 
     today = date.today().isoformat()
-    (Path("web") / "sitemap.xml").write_text(
+    (Path("sitemap.xml")).write_text(
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
         + "".join(f"<url><loc>{u}</loc><lastmod>{today}</lastmod></url>\n" for u in urls)
         + "</urlset>\n", encoding="utf-8")
-    (Path("web") / "robots.txt").write_text(
+    (Path("robots.txt")).write_text(
         f"User-agent: *\nAllow: /\nSitemap: {a.base}/sitemap.xml\n", encoding="utf-8")
     print(f"{len(tags)} страниц, индексы по типам, sitemap")
 

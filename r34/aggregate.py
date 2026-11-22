@@ -42,7 +42,7 @@ def main():
     ap.add_argument("--sort", choices=["total", "trend", "ai"], default="total")
     ap.add_argument("--top", type=int, default=300)
     ap.add_argument("--flat", action="store_true")
-    ap.add_argument("--out", default="web/data.json")
+    ap.add_argument("--out", default="data.json")
     a = ap.parse_args()
 
     keep = set(x for x in a.types.split(",") if x)
@@ -118,7 +118,7 @@ def main():
         for typ in sorted(keep):
             sub = [r for r in rows if r["type"] == typ]
             sub.sort(key=keys[a.sort])
-            print(f"  {typ}: {len(sub)} после фильтров")
+            print(f"  {typ}: {len(sub)} РїРѕСЃР»Рµ С„РёР»СЊС‚СЂРѕРІ")
             picked += sub[:a.top]
         rows = sorted(picked, key=lambda r: -r["total"])
 
@@ -126,7 +126,7 @@ def main():
         {"years": [str(y) for y in years], "n": dict(per_year),
          "ai": {str(y): round(ai_by_year[y] / per_year[y], 4) for y in years},
          "ratings": sorted(ratings), "tags": rows}, ensure_ascii=False))
-    print(f"{len(rows)} тегов → {a.out}")
+    print(f"{len(rows)} С‚РµРіРѕРІ → {a.out}")
 
 
 main()
