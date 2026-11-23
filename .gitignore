@@ -1,11 +1,9 @@
 .env
 r34.db
 raw/
-curve.json
 __pycache__/
 data-all.json
 data-copyright.json
-slugs.json
 harvest.log
 *.log
 *.bak
