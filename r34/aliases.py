@@ -2,6 +2,7 @@ from __future__ import annotations
 import json, sqlite3
 from collections import Counter, defaultdict
 from pathlib import Path
+from itertools import permutations
 
 import aggregate as agg  # нужен Curve
 
@@ -25,29 +26,32 @@ def main():
                 last[t] = y
 
     cand = []
-    by_last = defaultdict(list)
+
+    by_first = defaultdict(list)
     for t, n in total.items():
         if n >= MIN_POSTS:
-            by_last[last[t]].append(t)
+            by_first[first[t]].append(t)
     for a, na in total.items():
         if na < MIN_POSTS:
             continue
-        for b in by_last.get(first.get(a), []):
-            if b == a or total[b] < MIN_POSTS:
-                continue
-            r = na / total[b]
-            if RATIO[0] <= r <= RATIO[1]:
+    for y in (last[a] - 1, last[a], last[a] + 1):
+        for b in by_first.get(y, []):
+            if b != a and RATIO[0] <= na / total[b] <= RATIO[1]:
                 cand.append((a, b))
+
     print(f"кандидатов: {len(cand)}")
 
     pairs = {frozenset(p) for p in cand}
+
+    cand_set = set(cand)
+    valid_tags = {t for pair in cand for t in pair}
+
     both = Counter()
     for (tags,) in con.execute("SELECT tags FROM posts"):
-        s = set(tags.split())
-        for a, b in cand:
-            if a in s and b in s:
+        s = [t for t in set(tags.split()) if t in valid_tags]
+        for a, b in permutations(s, 2):
+            if (a, b) in cand_set:
                 both[(a, b)] += 1
-
     found = []
     for a, b in cand:
         share = both[(a, b)] / total[a]

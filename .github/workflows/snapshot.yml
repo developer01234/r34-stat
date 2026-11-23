@@ -24,10 +24,22 @@ jobs:
           R34_RPS: "1"
         run: python -V && python -m r34.harvest --samples 2000 --width 100 --seed ${{ github.run_number }}
       - name: calibrate
+        env:
+          R34_USER_ID: ${{ secrets.R34_USER_ID }}
+          R34_API_KEY: ${{ secrets.R34_API_KEY }}
+          R34_RPS: "1"
         run: python -m r34.calibrate
       - name: aggregate
+        env:
+          R34_USER_ID: ${{ secrets.R34_USER_ID }}
+          R34_API_KEY: ${{ secrets.R34_API_KEY }}
+          R34_RPS: "1"
         run: python -m r34.aggregate --top 300 --min-total 40
       - name: pages
+        env:
+          R34_USER_ID: ${{ secrets.R34_USER_ID }}
+          R34_API_KEY: ${{ secrets.R34_API_KEY }}
+          R34_RPS: "1"
         run: python -m r34.pages --data data.json --out tag --limit 1500
       - name: commit
         run: |

@@ -7,3 +7,10 @@ data-all.json
 data-copyright.json
 slugs.json
 harvest.log
+*.log
+*.bak
+demojibake.py
+fix.py
+fix2.py
+probe.py
+i18n.js.bak
