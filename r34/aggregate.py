@@ -4,10 +4,9 @@ from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-NOISE = {"tagme", "1girl", "1girls", "1boy", "solo", "absurd_res", "hi_res",
-         "highres", "high_quality", "high_resolution", "commentary",
-         "english_commentary", "artist_name", "signature", "watermark",
-         "absurdres", "ai_generated", "ai", "ai_art", "ai_assisted"}
+NOISE = {"tagme", "1girl", "1girls", "1boy", "solo", "absurd_res",
+         "high_quality", "commentary", "english_commentary", "artist_name",
+         "signature", "watermark"}
 
 ALL_TYPES = "general,copyright,character,artist,metadata"
 
@@ -28,6 +27,10 @@ class Curve:
             ts = y0 + (y1 - y0) * (post_id - x0) / max(1, x1 - x0)
         return datetime.fromtimestamp(ts, timezone.utc).year
 
+def load_aliases(path):
+    return {p["old"]: p["new"] for p in
+            json.loads(Path(path).read_text(encoding="utf-8"))
+            if p["old"] != p["new"]}
 
 def main():
     ap = argparse.ArgumentParser()
@@ -42,12 +45,31 @@ def main():
     ap.add_argument("--sort", choices=["total", "trend", "ai"], default="total")
     ap.add_argument("--top", type=int, default=300)
     ap.add_argument("--flat", action="store_true")
+    ap.add_argument("--aliases", nargs="+", default=[])
     ap.add_argument("--out", default="data.json")
+    ap.add_argument("--allow", default="")
     a = ap.parse_args()
 
     keep = set(x for x in a.types.split(",") if x)
     ratings = set(a.ratings.split(","))
+    allow = set(x for x in a.allow.split(",") if x)
     print(f"types={sorted(keep)}")
+
+    raw = {}
+    for path in a.aliases:
+        if Path(path).exists():
+            raw.update(load_aliases(path))
+
+    def final(t):
+        seen = set()
+        while t in raw and t not in seen:
+            seen.add(t)
+            t = raw[t]
+        return t
+
+    amap = {k: final(k) for k in raw}
+    if amap:
+        print(f"алиасов: {len(amap)}")
 
     curve = Curve(json.loads(Path("curve.json").read_text()))
     con = sqlite3.connect("r34.db")
@@ -66,13 +88,18 @@ def main():
         if is_ai:
             ai_by_year[y] += 1
         info = json.loads(ti or "{}")
-        for t in tags.split():
-            typ, g = info.get(t, ["general", 0])
-            meta[t] = (typ, g)
-            if typ in keep and g <= a.max_global:
-                counts[y][t] += 1
+        seen = set()
+        for tok in tags.split():
+            typ, g = info.get(tok, ["general", 0])
+            r = amap.get(tok, tok)
+            if r in seen:
+                continue
+            seen.add(r)
+            meta[r] = (typ, g)
+            if typ in keep and (g <= a.max_global or r in allow):
+                counts[y][r] += 1
                 if is_ai:
-                    ai_counts[y][t] += 1
+                    ai_counts[y][r] += 1
 
     years = sorted(y for y in per_year if per_year[y] >= 100)
     first3, last3 = years[:3], years[-3:]
@@ -82,7 +109,7 @@ def main():
 
     rows = []
     for t, (typ, g) in meta.items():
-        if typ not in keep or g > a.max_global:
+        if typ not in keep or (g > a.max_global and t not in allow):
             continue
         rare = typ in ("artist", "character")
         floor = a.min_total_rare if rare else a.min_total
@@ -106,7 +133,7 @@ def main():
                      "shares": {str(y): round(v, 6) for y, v in sh.items()}})
 
     if a.max_jump:
-        rows = [r for r in rows if r["jump"] <= a.max_jump]
+        rows = [r for r in rows if r["jump"] <= a.max_jump or r["tag"] in allow]
 
     keys = {"trend": lambda r: -r["trend"], "ai": lambda r: -r["ai"],
             "total": lambda r: -r["total"]}
@@ -118,7 +145,7 @@ def main():
         for typ in sorted(keep):
             sub = [r for r in rows if r["type"] == typ]
             sub.sort(key=keys[a.sort])
-            print(f"  {typ}: {len(sub)} РїРѕСЃР»Рµ С„РёР»СЊС‚СЂРѕРІ")
+            print(f"  {typ}: {len(sub)} после фильтров")
             picked += sub[:a.top]
         rows = sorted(picked, key=lambda r: -r["total"])
 
@@ -126,7 +153,8 @@ def main():
         {"years": [str(y) for y in years], "n": dict(per_year),
          "ai": {str(y): round(ai_by_year[y] / per_year[y], 4) for y in years},
          "ratings": sorted(ratings), "tags": rows}, ensure_ascii=False))
-    print(f"{len(rows)} С‚РµРіРѕРІ → {a.out}")
+    print(f"{len(rows)} тегов → {a.out}")
 
 
-main()
+if __name__ == "__main__":
+    main()

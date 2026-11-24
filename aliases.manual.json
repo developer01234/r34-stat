@@ -1,0 +1,11 @@
+[
+ {"old": "hi_res", "new": "highres"},
+ {"old": "high_res", "new": "highres"},
+ {"old": "high_resolution", "new": "highres"},
+ {"old": "very_high_resolution", "new": "highres"},
+ {"old": "absurdres", "new": "absurd_res"},
+ {"old": "ai-generated", "new": "ai_generated"},
+ {"old": "ai_art", "new": "ai_generated"},
+ {"old": "ai-created", "new": "ai_generated"},
+ {"old": "ai_assisted", "new": "ai_generated"}
+]
