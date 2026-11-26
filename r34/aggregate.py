@@ -102,7 +102,6 @@ def main():
                     ai_counts[y][r] += 1
 
     years = sorted(y for y in per_year if per_year[y] >= 100)
-    first3, last3 = years[:3], years[-3:]
 
     def mean(vals):
         return sum(vals) / len(vals) if vals else 0.0
@@ -121,14 +120,25 @@ def main():
             continue
         jumps = [sh[y2] / sh[y1] for y1, y2 in zip(years, years[1:]) if sh[y1] > 0]
         jump = max(jumps) if jumps else 1.0
-        p_first = mean([sh[y] for y in first3])
-        p_last = mean([sh[y] for y in last3])
-        n_last = mean([per_year[y] for y in last3]) or 1
+        nz = [i for i, y in enumerate(years) if counts[y][t]]
+        i0, i1 = nz[0], nz[-1]
+        bi = i0
+        while bi < i1 and mean([sh[years[i]] for i in range(bi, min(bi + 3, len(years)))]) < 0.001:
+            bi += 1
+        w_first = range(bi, min(bi + 3, len(years)))
+        w_first = range(bi, min(bi + 3, len(years)))
+        w_last = range(max(i1 - 2, 0), i1 + 1)
+        p_first = mean([sh[years[i]] for i in w_first])
+        p_last = mean([sh[years[i]] for i in w_last])
+        n_last = mean([per_year[years[i]] for i in w_last]) or 1
+
         trend = (p_last + 1e-6) / (p_first + 1e-6)
         margin = 1.96 * math.sqrt(max(p_last * (1 - p_last), 0) / n_last)
+
         ai_share = sum(ai_counts[y][t] for y in years) / total if total else 0.0
         rows.append({"tag": t, "type": typ, "total": total, "jump": round(jump, 1),
-                     "trend": round(trend, 3), "margin": round(margin, 5),
+                     "trend": round(min(trend, 9999.0), 2),
+                     "margin": round(margin, 5),
                      "ai": round(ai_share, 4),
                      "shares": {str(y): round(v, 6) for y, v in sh.items()}})
 

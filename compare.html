@@ -47,8 +47,8 @@ function draw(){
     return `<tr><td>${y}</td><td>${va?va.toFixed(2):''}</td><td>${vb?vb.toFixed(2):''}</td></tr>`;
   }).join('');
   stat.innerHTML=`<table>${head}${body}</table>
-    <p>${ta.tag}: ${ta.trend}× · ${t('pm')}${(ta.margin*100).toFixed(1)} pp &nbsp;|&nbsp;
-    ${tb.tag}: ${tb.trend}× · ${t('pm')}${(tb.margin*100).toFixed(1)} pp &nbsp;|&nbsp;
+    <p>${ta.tag}: ${fmtT(ta.trend)}× · ${t('pm')}${(ta.margin*100).toFixed(1)} pp &nbsp;|&nbsp;
+    ${tb.tag}: ${fmtT(tb.trend)}× · ${t('pm')}${(tb.margin*100).toFixed(1)} pp &nbsp;|&nbsp;
     ${t('scale')} ${(peak*100).toFixed(1)}%</p>`;
 }
 </script></body></html>

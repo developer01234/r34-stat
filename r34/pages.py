@@ -1,14 +1,11 @@
 from __future__ import annotations
-import argparse, html, json, math, re
+import argparse, json, math, re
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
 
 TINT = {"metadata": "#e0b23a", "copyright": "#e87bb0", "character": "#5fbf6a",
         "artist": "#a8763e", "general": "#6aa8e8"}
-
-LABELS = {"artist": "artists", "copyright": "franchises", "character": "characters",
-          "general": "similar", "metadata": "related meta"}
 
 
 def slug(tag):
@@ -22,7 +19,7 @@ def corr(a, b):
         return 0.0
     ma, mb = sum(a) / n, sum(b) / n
     va = sum((x - ma) ** 2 for x in a)
-    vb = sum((y - mb) ** 2 for y in b)
+    vb = sum((x - mb) ** 2 for x in b)
     if va == 0 or vb == 0:
         return 0.0
     return sum((x - ma) * (y - mb) for x, y in zip(a, b)) / math.sqrt(va * vb)
@@ -52,7 +49,7 @@ def badge(t, years):
     n = len(vals) - 1 or 1
     pts = " ".join(f"{112 + i * (74 / n):.1f},{23 - (v / mx) * 18:.1f}"
                    for i, v in enumerate(vals))
-    label = html.escape(t["tag"])[:16]
+    label = html_escape(t["tag"])[:16]
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="28">'
             f'<rect width="200" height="28" rx="4" fill="#1b1b1b"/>'
             f'<text x="6" y="18" font-family="system-ui" font-size="11" '
@@ -61,31 +58,39 @@ def badge(t, years):
             f'</svg>')
 
 
-def page(t, d, years, rel, base, used):
+def html_escape(s):
+    return (s.replace("&", "&amp;").replace("<", "&lt;")
+             .replace(">", "&gt;").replace('"', "&quot;"))
+
+
+def page(t, d, years, rel, base, slugs):
     vals = [t["shares"].get(y, 0) * 100 for y in years]
     peak = max(vals)
     peak_y = years[vals.index(peak)]
     cur = vals[-1]
     color = TINT.get(t["type"], TINT["general"])
+    tr = f"{t['trend']:.0f}" if t["trend"] >= 10 else f"{t['trend']:.1f}" # <-- Вставьте сюда
     rows = "".join(f"<tr><td>{y}</td><td>{v:.2f}%</td>"
                    f"<td>{d['n'].get(y, 0)}</td></tr>"
                    for y, v in zip(years, vals))
+    labels = {"artist": "artists", "copyright": "franchises", "character": "characters",
+              "general": "similar", "metadata": "related meta"}
     blocks = ""
     for typ, lst in rel.items():
         if not lst:
             continue
-        blocks += (f'<p><span class="k">{LABELS.get(typ, typ)}</span>: '
-                   + " ".join(f'<a href="{used.get(r, slug(r))}.html">{html.escape(r)}</a>'
+        blocks += (f'<p><span class="k">{labels.get(typ, typ)}</span>: '
+                   + " ".join(f'<a href="{slugs.get(r, slug(r))}.html">{html_escape(r)}</a>'
                               for r in lst) + "</p>")
     blocks += (f'<p><a href="../{t["type"]}/index.html">'
-               f'all {LABELS.get(t["type"], t["type"])}</a></p>')
+               f'all {labels.get(t["type"], t["type"])}</a></p>')
     desc = (f"{t['tag']} on rule34.xxx: share of posts by year, peak {peak:.2f}% "
             f"in {peak_y}, now {cur:.2f}%.")
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{html.escape(t['tag'])} — popularity by year | r34 tag trends</title>
-<meta name="description" content="{html.escape(desc)}">
-<link rel="canonical" href="{base}/tag/{slug(t['tag'])}.html">
+<title>{html_escape(t['tag'])} — popularity by year | r34 tag trends</title>
+<meta name="description" content="{html_escape(desc)}">
+<link rel="canonical" href="{base}/tag/{slugs[t['tag']]}.html">
 <script src="../i18n.js"></script>
 <style>
  body{{background:#111;color:#ddd;font:14px system-ui;margin:0;padding:24px;max-width:760px}}
@@ -99,12 +104,12 @@ def page(t, d, years, rel, base, used):
 <p><a href="../" data-i18n="dash">← dashboard</a>
  <a href="./" data-i18n="back">← all tags</a>
  <button onclick="setLang(localStorage.lang==='en'?'ru':'en')">EN / RU</button></p>
-<h1>{html.escape(t['tag'])}</h1>
+<h1>{html_escape(t['tag'])}</h1>
 <p class="type"><span data-i18n="type">type</span>: {t['type']}</p>
 {spark(vals, years, color)}
 <p><span class="k" data-i18n="peak">peak</span>: {peak:.2f}% {peak_y} &nbsp;
 <span class="k" data-i18n="now">now</span>: {cur:.2f}% &nbsp;
-<span class="k" data-i18n="trend">trend</span>: {t['trend']}× &nbsp;
+<span class="k" data-i18n="trend">trend</span>: {tr}× &nbsp;
 <span class="k" data-i18n="aish">AI</span>: {(t['ai'] * 100):.1f}%
 <svg width="120" height="7" style="vertical-align:middle">
 <rect width="120" height="7" fill="#222"/>
@@ -112,20 +117,25 @@ def page(t, d, years, rel, base, used):
 </svg> &nbsp;
 <span class="k" data-i18n="pm">±</span>: {(t['margin'] * 100):.1f}</p>
 <table><tr><th data-i18n="year">year</th><th>%</th><th>n</th></tr>{rows}</table>
+<p><span class="k" data-i18n="related">related</span>:</p>
 {blocks}
 <p><span class="k" data-i18n="badge">badge</span>:
-<code>&lt;img src="{base}/badge/{slug(t['tag'])}.svg"&gt;</code></p>
+<code>&lt;img src="{base}/badge/{slugs[t['tag']]}.svg"&gt;</code></p>
 <p class="k" data-i18n="ainote">AI share</p>
 <footer data-i18n="foot"> </footer>
 </body></html>"""
 
 
-def index_page(rows, title, base, dirname):
+def index_page(rows, title, base, dirname, note="", default_sort="total"):
     body = "".join(
         f'<tr data-total="{r["total"]}" data-ai="{r["ai"]}" data-trend="{r["trend"]}">'
-        f'<td><a href="../tag/{slug(r["tag"])}.html">{html.escape(r["tag"])}</a></td>'
+        f'<td><a href="../tag/{slug(r["tag"])}.html">{html_escape(r["tag"])}</a></td>'
         f'<td>{r["total"]}</td><td>{(r["ai"] * 100):.0f}</td><td>{r["trend"]}×</td></tr>'
         for r in rows)
+    opts = "".join(
+        f'<option value="{v}"{" selected" if v == default_sort else ""}>{lab}</option>'
+        for v, lab in (("total", "by volume"), ("ai", "by AI share"), ("trend", "by rise")))
+    note_html = f'<p class="k">{note}</p>' if note else ""
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <title>{title} — r34 tag trends</title>
 <meta name="description" content="{title} on rule34.xxx by year: volume, AI share and trend.">
@@ -136,13 +146,11 @@ def index_page(rows, title, base, dirname):
  a{{color:#6aa8e8}} table{{border-collapse:collapse;margin-top:14px}}
  td,th{{padding:2px 10px;text-align:left;font-weight:400;border-bottom:1px solid #222}}
  select{{background:#1b1b1b;color:#ddd;border:1px solid #444;padding:2px}}
+ .k{{color:#888}}
 </style></head><body>
 <p><a href="../" data-i18n="dash">← dashboard</a> · <a href="../tag/" data-i18n="tags">all tags</a></p>
-<h1>{title}</h1>
-<p>sort: <select id="s">
-<option value="total">by volume</option>
-<option value="ai">by AI share</option>
-<option value="trend">by rise</option></select></p>
+<h1>{title}</h1>{note_html}
+<p>sort: <select id="s">{opts}</select></p>
 <table><thead><tr><th>tag</th><th>posts</th><th>AI %</th><th>trend</th></tr></thead>
 <tbody id="tb">{body}</tbody></table>
 <script>
@@ -195,7 +203,7 @@ rarely lands there. The left edge of every chart is noisy, and those shares are 
 rough guide, not a measurement.</p>
 
 <h2>Margin of error</h2>
-<p>The вЂњ±вЂќ column is a 95% confidence interval computed as
+<p>The “±” column is a 95% confidence interval computed as
 <code>1.96·√(p(1−p)/n)</code> over the last three years. At a 10% share and n=3000
 that is ±1.1 pp. A difference smaller than the interval is not a signal.</p>
 
@@ -206,6 +214,12 @@ Example — <code>genitals</code>: 0.4% in 2020 and 22% in 2021, a 54-fold rise.
 <p>Gradual changes in tagging convention slip past the filter. The fall of
 <code>human</code> mostly means people stopped listing the species, not that fewer
 humans appear in the images.</p>
+
+<h2>Aliases</h2>
+<p>Duplicate spellings (<code>hi_res</code> / <code>highres</code>,
+<code>ai-generated</code> / <code>ai_generated</code>) are merged before counting.
+The map is partly auto-detected and partly hand-written, and merged tags inherit the
+sum of their variants — so a rise there can come from the merge itself.</p>
 
 <h2>What is not measured</h2>
 <p>Share is neither quality nor views. <code>score</code> is useless for this: votes are
@@ -234,12 +248,13 @@ def main():
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    used, vecs = {}, {}
+    used, vecs, slugs = {}, {}, {}
     for t in tags:
         s = slug(t["tag"])
         while s in used and used[s] != t["tag"]:
             s += "_"
         used[s] = t["tag"]
+        slugs[t["tag"]] = s
         vecs[t["tag"]] = [t["shares"].get(y, 0) for y in years]
 
     for t in tags:
@@ -247,13 +262,13 @@ def main():
         others.sort(key=lambda o: -corr(vecs[t["tag"]], vecs[o["tag"]]))
         rel = defaultdict(list)
         for o in others:
-            cap = a.related if o["type"] == t["type"] else 4
+            cap = 6 if o["type"] == t["type"] else 4
             if len(rel[o["type"]]) < cap:
                 rel[o["type"]].append(o["tag"])
-        (out / f"{slug(t['tag'])}.html").write_text(
-            page(t, d, years, rel, a.base, used), encoding="utf-8")
+        (out / f"{slugs[t['tag']]}.html").write_text(
+            page(t, d, years, rel, a.base, slugs), encoding="utf-8")
 
-    idx = "".join(f'<li><a href="{slug(t["tag"])}.html">{html.escape(t["tag"])}</a> '
+    idx = "".join(f'<li><a href="{slugs[t["tag"]]}.html">{html_escape(t["tag"])}</a> '
                   f'<span class="k">{t["type"]}</span></li>' for t in tags)
     (out / "index.html").write_text(
         f"""<!doctype html><html lang="en"><meta charset="utf-8"><title>all tags</title>
@@ -270,31 +285,58 @@ a{{color:#6aa8e8}} .k{{color:#777;font-size:11px}} li{{margin:3px 0}}</style>
         d_dir.mkdir(parents=True, exist_ok=True)
         (d_dir / "index.html").write_text(
             index_page(sub, f"all {typ}", a.base, typ), encoding="utf-8")
-    
+
     for name, subset, label in [
         ("rising", [x for x in tags if x["trend"] > 1.5], "biggest risers"),
         ("falling", [x for x in tags if x["trend"] < 0.7], "biggest fallers"),
     ]:
+        subset = [x for x in subset if x["margin"] < 0.05 and x["total"] >= 300]
         sub = sorted(subset, key=lambda r: (-r["trend"] if name == "rising" else r["trend"]))[:200]
         if not sub:
             continue
         d_dir = Path(name)
         d_dir.mkdir(parents=True, exist_ok=True)
         (d_dir / "index.html").write_text(
-            index_page(sub, label, a.base, name), encoding="utf-8")
+            index_page(sub, label, a.base, name, default_sort="trend",
+                       note="trend = last 3 years vs first 3 years; "
+                            "only tags with 300+ posts and a margin under 5 pp"),
+            encoding="utf-8")
 
     (Path("method.html")).write_text(method(d, years, a.base), encoding="utf-8")
 
     bad = Path("badge")
     bad.mkdir(parents=True, exist_ok=True)
     for t in tags:
-        (bad / f"{slug(t['tag'])}.svg").write_text(badge(t, years), encoding="utf-8")
+        (bad / f"{slugs[t['tag']]}.svg").write_text(badge(t, years), encoding="utf-8")
 
-    (Path("slugs.json")).write_text(json.dumps(used, ensure_ascii=False),
-                                            encoding="utf-8")
+    (Path("slugs.json")).write_text(json.dumps(slugs, ensure_ascii=False),
+                                    encoding="utf-8")
+
+    redir = {}
+    for t in tags:
+        raw = t["tag"]
+        if raw != slugs[raw] and re.fullmatch(r"[A-Za-z0-9._()!\[\]-]+", raw):
+            redir[raw] = slugs[raw]
+
+    keep_files = {f"{s}.html" for s in slugs.values()} | {"index.html"}
+    keep_files |= {f"{r}.html" for r in redir}
+    for f in out.glob("*.html"):
+        if f.name not in keep_files:
+            f.unlink()
+    keep_badges = {f"{s}.svg" for s in slugs.values()}
+    for f in bad.glob("*.svg"):
+        if f.name not in keep_badges:
+            f.unlink()
+    for raw, target in redir.items():
+        (out / f"{raw}.html").write_text(
+            f'<!doctype html><meta charset="utf-8">'
+            f'<meta http-equiv="refresh" content="0;url={target}.html">'
+            f'<link rel="canonical" href="{a.base}/tag/{target}.html">',
+            encoding="utf-8")
 
     urls = [f"{a.base}/", f"{a.base}/method.html", f"{a.base}/compare.html"]
-    for name in ["tag", "badge", "artist", "character", "copyright", "general", "metadata", "rising", "falling"]:
+    for name in ["tag", "badge", "artist", "character", "copyright",
+                 "general", "metadata", "rising", "falling"]:
         p = Path(name)
         if p.is_dir():
             urls += [f"{a.base}/{name}/{x.name}" for x in sorted(p.glob("*.html"))]
@@ -307,7 +349,8 @@ a{{color:#6aa8e8}} .k{{color:#777;font-size:11px}} li{{margin:3px 0}}</style>
         + "</urlset>\n", encoding="utf-8")
     (Path("robots.txt")).write_text(
         f"User-agent: *\nAllow: /\nSitemap: {a.base}/sitemap.xml\n", encoding="utf-8")
-    print(f"{len(tags)} страниц, индексы по типам, sitemap")
+    print(f"{len(tags)} страниц + sitemap")
 
 
-main()
+if __name__ == "__main__":
+    main()
