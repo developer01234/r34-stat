@@ -123,12 +123,14 @@ async def crawl(client, con, top):
         print(f"cursor {lo} ({len(posts)})", flush=True)
         hi = lo
 
-async def sample(client, con, n, width, seed=34):
-    top = await max_id(client)
+async def sample(client, con, n, width, seed=34, id_min=1, id_max=None):
+    top = id_max or await max_id(client)
     rng = random.Random(seed)
-    windows = [(lo, lo + width) for lo in sorted(rng.sample(range(1, top - width), n))]
+    span = range(max(1, id_min), max(2, top - width))
+    pick = rng.sample(span, min(n, len(span)))
+    windows = [(lo, lo + width) for lo in sorted(pick)]
     done = {r[0] for r in con.execute("SELECT lo FROM windows WHERE done=1")}
-    print(f"max id {top}; окон: {len(windows)} (пропуск {len(done)})", flush=True)
+    print(f"диапазон {id_min}..{top}; окон: {len(windows)} (пропуск {len(done)})", flush=True)
     RAW.mkdir(exist_ok=True)
 
     async def grab(lo, hi):
@@ -165,6 +167,8 @@ async def main():
     ap.add_argument("--width", type=int, default=100)
     ap.add_argument("--seed", type=int, default=34)
     ap.add_argument("--reset", action="store_true")
+    ap.add_argument("--id-min", type=int, default=1)
+    ap.add_argument("--id-max", type=int, default=None)
     a = ap.parse_args()
 
     con = sqlite3.connect(DB)
@@ -177,7 +181,7 @@ async def main():
         if a.mode == "full":
             await crawl(client, con, await max_id(client))
         else:
-            await sample(client, con, a.samples, a.width, a.seed)
+            await sample(client, con, a.samples, a.width, a.seed, a.id_min, a.id_max)
 
 
 if __name__ == "__main__":

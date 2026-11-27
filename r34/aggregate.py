@@ -8,6 +8,8 @@ NOISE = {"tagme", "1girl", "1girls", "1boy", "solo", "absurd_res",
          "high_quality", "commentary", "english_commentary", "artist_name",
          "signature", "watermark"}
 
+AI_TAGS = {"ai_generated", "ai-generated", "ai_art", "ai-created", "ai_assisted"}
+
 ALL_TYPES = "general,copyright,character,artist,metadata"
 
 
@@ -84,12 +86,13 @@ def main():
             continue
         y = curve.year(pid)
         per_year[y] += 1
-        is_ai = "ai_generated" in tags
+        tag_list = tags.split()
+        is_ai = any(t in AI_TAGS for t in tag_list)
         if is_ai:
             ai_by_year[y] += 1
         info = json.loads(ti or "{}")
         seen = set()
-        for tok in tags.split():
+        for tok in tag_list:
             typ, g = info.get(tok, ["general", 0])
             r = amap.get(tok, tok)
             if r in seen:
@@ -125,7 +128,6 @@ def main():
         bi = i0
         while bi < i1 and mean([sh[years[i]] for i in range(bi, min(bi + 3, len(years)))]) < 0.001:
             bi += 1
-        w_first = range(bi, min(bi + 3, len(years)))
         w_first = range(bi, min(bi + 3, len(years)))
         w_last = range(max(i1 - 2, 0), i1 + 1)
         p_first = mean([sh[years[i]] for i in w_first])

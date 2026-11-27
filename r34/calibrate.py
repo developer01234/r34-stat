@@ -1,43 +1,45 @@
 from __future__ import annotations
-import asyncio, json, sqlite3, statistics
+import json, sqlite3
 from pathlib import Path
-import httpx
-from r34.harvest import fetch, UA, DB, max_id
 
-POINTS, WIDTH = 400, 250
+DB = "r34.db"
+BINS = 500  # разбиваем всю базу на 500 интервалов по ID
 
-
-def pava(xs, ys):
-    """Pool-adjacent-violators: РґРµР»Р°РµРј СЂСЏРґ РјРѕРЅРѕС‚РѕРЅРЅРѕ РЅРµСѓР±С‹РІР°СЋС‰РёРј."""
-    blocks = [[x, y, 1] for x, y in zip(xs, ys)]
-    out = []
-    for b in blocks:
-        out.append(b)
-        while len(out) > 1 and out[-2][1] / out[-2][2] > out[-1][1] / out[-1][2]:
-            y2, n2 = out.pop()[1:]
-            out[-1][1] += y2
-            out[-1][2] += n2
-    return [(b[0], b[1] / b[2]) for b in out]
-
-
-async def main():
+def main():
     con = sqlite3.connect(DB)
-    async with httpx.AsyncClient(headers={"User-Agent": UA}, timeout=90) as client:
-        top = await max_id(client)
-    step = max(1, top // POINTS)
-    pts = []
-    async with httpx.AsyncClient(headers={"User-Agent": UA}, timeout=60) as client:
-        for lo in range(1, top - WIDTH, step):
-            posts = await fetch(client, f"id:>{lo} id:<{lo + WIDTH}", limit=1000)
-            # change >= upload; РјРёРЅРёРјСѓРј РїРѕ РѕРєРЅСѓ — Р»СѓС‡С€Р°СЏ РѕС†РµРЅРєР° РІСЂРµРјРµРЅРё Р·Р°РіСЂСѓР·РєРё
-            ts = [int(p["change"]) for p in posts if p.get("change")]
-            if len(ts) >= 5:
-                pts.append((lo + WIDTH // 2, min(ts)))
-            print(f"{lo}: {len(ts)}", end="\r", flush=True)
-    pts.sort()
-    curve = pava([p[0] for p in pts], [p[1] for p in pts])
-    Path("curve.json").write_text(json.dumps(curve))
-    print(f"\nС‚РѕС‡РµРє: {len(curve)} → curve.json")
+    rows = con.execute(
+        "SELECT id, change_ts FROM posts WHERE change_ts > 1200000000 ORDER BY id"
+    ).fetchall()
+    
+    if not rows:
+        raise RuntimeError("В базе нет постов с change_ts")
 
+    step = max(1, len(rows) // BINS)
+    raw_pts = []
+    for i in range(0, len(rows), step):
+        chunk = rows[i:i + step]
+        # Берем минимальный ID и самый старый change_ts в этом чанке (~900 постов)
+        mid_id = chunk[len(chunk) // 2][0]
+        min_ts = min(r[1] for r in chunk)
+        raw_pts.append((mid_id, min_ts))
 
-asyncio.run(main())
+    # Делаем ряд строго неубывающим справа налево (если в будущем был пост из 2011,
+    # то посты с меньшим ID точно не могли выйти позже него!)
+    clean_pts = []
+    min_so_far = float("inf")
+    for pid, ts in reversed(raw_pts):
+        if ts < min_so_far:
+            min_so_far = ts
+        clean_pts.append([pid, float(min_so_far)])
+    clean_pts.reverse()
+
+    # Явно фиксируем самую левую точку на первом ID из базы с его реальным минимальным ts
+    first_id = rows[0][0]
+    if clean_pts[0][0] > first_id:
+        clean_pts.insert(0, [first_id, clean_pts[0][1]])
+
+    Path("curve.json").write_text(json.dumps(clean_pts))
+    print(f"Построено точек: {len(clean_pts)} по {len(rows)} постам -> curve.json")
+
+if __name__ == "__main__":
+    main()
