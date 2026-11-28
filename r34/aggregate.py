@@ -5,8 +5,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 NOISE = {"tagme", "1girl", "1girls", "1boy", "solo", "absurd_res",
-         "high_quality", "commentary", "english_commentary", "artist_name",
-         "signature", "watermark"}
+         "commentary", "english_commentary", "artist_name","signature",
+         "watermark"}
 
 AI_TAGS = {"ai_generated", "ai-generated", "ai_art", "ai-created", "ai_assisted"}
 
@@ -81,7 +81,7 @@ def main():
     ai_counts = defaultdict(Counter)
 
     for pid, tags, ti, rating in con.execute(
-            "SELECT id, tags, tag_info, rating FROM posts"):
+            "SELECT id, tags, tag_info, rating FROM posts WHERE id >= 120000"):
         if rating not in ratings:
             continue
         y = curve.year(pid)

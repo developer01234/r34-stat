@@ -68,11 +68,12 @@ def page(t, d, years, rel, base, slugs):
     peak = max(vals)
     peak_y = years[vals.index(peak)]
     cur = vals[-1]
+    dyears = [f"≤{years[0]}"] + [str(y) for y in years[1:]]
     color = TINT.get(t["type"], TINT["general"])
     tr = f"{t['trend']:.0f}" if t["trend"] >= 10 else f"{t['trend']:.1f}" # <-- Вставьте сюда
     rows = "".join(f"<tr><td>{y}</td><td>{v:.2f}%</td>"
                    f"<td>{d['n'].get(y, 0)}</td></tr>"
-                   for y, v in zip(years, vals))
+                   for y, v in zip(dyears, vals))
     labels = {"artist": "artists", "copyright": "franchises", "character": "characters",
               "general": "similar", "metadata": "related meta"}
     blocks = ""
@@ -106,7 +107,7 @@ def page(t, d, years, rel, base, slugs):
  <button onclick="setLang(localStorage.lang==='en'?'ru':'en')">EN / RU</button></p>
 <h1>{html_escape(t['tag'])}</h1>
 <p class="type"><span data-i18n="type">type</span>: {t['type']}</p>
-{spark(vals, years, color)}
+{spark(vals, dyears, color)}
 <p><span class="k" data-i18n="peak">peak</span>: {peak:.2f}% {peak_y} &nbsp;
 <span class="k" data-i18n="now">now</span>: {cur:.2f}% &nbsp;
 <span class="k" data-i18n="trend">trend</span>: {tr}× &nbsp;
@@ -214,6 +215,11 @@ Example — <code>genitals</code>: 0.4% in 2020 and 22% in 2021, a 54-fold rise.
 <p>Gradual changes in tagging convention slip past the filter. The fall of
 <code>human</code> mostly means people stopped listing the species, not that fewer
 humans appear in the images.</p>
+
+<p>Everything before 2011 is a single bucket marked ≤. Below roughly ID 120 000 the
+date cannot be resolved: the oldest posts were mass-retagged, so their
+<code>change</code> timestamps sit years after upload. Treat the first column as one
+baseline, not as a year to compare with its neighbours.</p>
 
 <h2>Aliases</h2>
 <p>Duplicate spellings (<code>hi_res</code> / <code>highres</code>,
